@@ -3,7 +3,7 @@
 exit 0
 #endif
 
-#include "platform.hpp"
+#include "platform_implementation.hpp"
 #include <string.h>
 
 static nuint tabs = 0;
@@ -47,11 +47,15 @@ void object_block(auto name, auto f) {
 	object_block(f);
 }
 
-void entrypoint() {
+int main() {
+	platform::init();
+
+	using namespace vk;
+
 	auto instance = platform::create_instance();
 
 	array_block("physical devices", [&]() {
-		instance.for_each_physical_device([](vk::handle<vk::physical_device> device) {
+		instance.for_each_physical_device([](handle<physical_device> device) {
 			auto props = device.get_properties();
 
 			println("api version: ",
@@ -67,15 +71,15 @@ void entrypoint() {
 
 			const char* type_name;
 			switch(props.type) {
-				case vk::physical_device_type::other
+				case physical_device_type::other
 					: type_name = "other"; break;
-				case vk::physical_device_type::integrated_gpu
+				case physical_device_type::integrated_gpu
 					: type_name = "integrated gpu"; break;
-				case vk::physical_device_type::discrete_gpu
+				case physical_device_type::discrete_gpu
 					: type_name = "discrete gpu"; break;
-				case vk::physical_device_type::virtual_gpu
+				case physical_device_type::virtual_gpu
 					: type_name = "virtual gpu"; break;
-				case vk::physical_device_type::cpu
+				case physical_device_type::cpu
 					: type_name = "cpu"; break;
 			}
 
@@ -92,10 +96,10 @@ void entrypoint() {
 							props.min_image_transfer_granularity[1], ", ",
 							props.min_image_transfer_granularity[2]
 						);
-						println("graphics: ", props.flags.get(vk::queue_flag::graphics));
-						println("compute: ", props.flags.get(vk::queue_flag::compute));
-						println("transfer: ", props.flags.get(vk::queue_flag::transfer));
-						println("sparse binding: ", props.flags.get(vk::queue_flag::sparse_binding));
+						println("graphics: ", props.flags.get(queue_flag::graphics));
+						println("compute: ", props.flags.get(queue_flag::compute));
+						println("transfer: ", props.flags.get(queue_flag::transfer));
+						println("sparse binding: ", props.flags.get(queue_flag::sparse_binding));
 					});
 				});
 			});
@@ -111,7 +115,7 @@ void entrypoint() {
 		});
 
 		array_block("instance_layers", [&] {
-			vk::for_each_instance_layer_properties([](auto props) {
+			for_each_instance_layer_properties([](auto props) {
 				object_block([&]{
 					println("name: ", props.name);
 					println("spec version: ", props.spec_version);

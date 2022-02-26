@@ -12,9 +12,11 @@ cp ${src_dir}/leaf.png ${src_dir}/build/leaf.png
 exit 0
 #endif
 
-#include "platform.hpp"
+#include "platform_implementation.hpp"
 
-void entrypoint() {
+int main() {
+	platform::init();
+
 	using namespace vk;
 
 	auto instance = platform::create_instance();
@@ -26,7 +28,7 @@ void entrypoint() {
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface isn't supported").new_line();
-		return;
+		return 1;
 	}
 
 	auto device = physical_device.create_guarded_device(
@@ -419,7 +421,7 @@ void entrypoint() {
 			if(result.is_unexpected()) {
 				if(result.get_unexpected().suboptimal() || result.get_unexpected().out_of_date()) break;
 				platform::error("acquire next image").new_line();
-				return;
+				return 1;
 			}
 
 			image_index image_index = result;
@@ -466,7 +468,7 @@ void entrypoint() {
 			}
 			if(present_result.error()) {
 				platform::error("present").new_line();
-				return;
+				return 1;
 			}
 
 			platform::end();

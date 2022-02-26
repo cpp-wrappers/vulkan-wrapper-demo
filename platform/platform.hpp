@@ -14,25 +14,23 @@
 #include "vk/debug/report/callback/create.hpp"
 #include "vk/default_unexpected_handler.hpp"
 
-void entrypoint();
-
 namespace platform {
 
 	struct logger {
 		void* raw;
 
-		const logger& string(const char*, nuint length) const;
+		inline const logger& string(const char*, nuint length) const;
 
 		const logger& operator () (const char*) const;
 		const logger& operator () (char) const;
 
-		auto& new_line() const {
+		const logger& new_line() const {
 			(*this)('\n');
 			return *this;
 		}
 
 		template<unsigned_integer I>
-		auto& operator() (I i) const {
+		const logger& operator() (I i) const {
 			for_each_digit_in_number(number{ i }, base{ 10 }, [this](nuint digit) {
 				(*this)(char(digit + '0'));
 			});
@@ -40,7 +38,7 @@ namespace platform {
 		}
 
 		template<signed_integer I>
-		auto& operator() (I i) const {
+		const logger& operator() (I i) const {
 			if(i < 0) {
 				(*this)("-");
 				(*this)(uint_of_size_of<I>(-i));
@@ -51,7 +49,7 @@ namespace platform {
 			return *this;
 		}
 
-		auto& operator() (bool b) const {
+		const logger& operator() (bool b) const {
 			if(b) (*this)("true");
 			else (*this)("false");
 			return *this;
@@ -59,7 +57,7 @@ namespace platform {
 
 		template<typename... Args>
 		requires(sizeof...(Args) >= 2)
-		auto& operator () (Args... args) const {
+		const logger& operator () (Args... args) const {
 			( (*this)(args), ... );
 			return *this;
 		}
@@ -83,11 +81,9 @@ namespace platform {
 	};
 
 	image_info read_image_info(const char* path);
-
 	void read_image_data(const char* path, span<char> buffer);
 
 	span<vk::extension_name> get_required_instance_extensions();
-
 	vk::guarded_handle<vk::surface> create_surface(vk::handle<vk::instance>);
 
 	inline uint32 debug_report(
@@ -143,11 +139,11 @@ namespace platform {
 		return device.create_guarded<vk::shader_module>(vk::code_size{ (uint32) size }, vk::code{ (uint32*) src } );
 	}
 
-	//extern glm::mat4 view_matrix;
-	extern math::matrix<float, 4, 4> view_matrix;
+	inline math::matrix<float, 4, 4> view_matrix;
 
-	bool should_close();
-	void begin();
-	void end();
+	inline bool should_close();
+	inline void init();
+	inline void begin();
+	inline void end();
 
 } // platform

@@ -6,10 +6,12 @@ exit 0
 #include "vk/instance/guarded_handle.hpp"
 #include "vk/instance/layer_properties.hpp"
 
-#include "platform.hpp"
+#include "platform_implementation.hpp"
 #include <string.h>
 
-void entrypoint() {
+int main() {
+	platform::init();
+
 	using namespace vk;
 
 	auto instance = platform::create_instance();
@@ -25,7 +27,7 @@ void entrypoint() {
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface is not supported").new_line();
-		return;
+		return 1;
 	}
 
 	auto surface_format = physical_device.get_first_surface_format(surface);
@@ -119,7 +121,7 @@ void entrypoint() {
 		if(result.is_unexpected()) {
 			if(result.get_unexpected().suboptimal()) break;
 			platform::error("can't acquire swapchain image").new_line();
-			return;
+			return 1;
 		}
 
 		vk::image_index image_index = result;

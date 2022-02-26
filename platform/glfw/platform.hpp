@@ -8,30 +8,30 @@
 
 #include "../platform.hpp"
 
-const platform::logger& platform::logger::string(const char* str, nuint length) const {
+inline const platform::logger& platform::logger::string(const char* str, nuint length) const {
 	fwrite(str, 1, length, (FILE*) raw);
 	fflush((FILE*) raw);
 	return *this;
 }
 
-const platform::logger& platform::logger::operator () (const char* str) const {
+inline const platform::logger& platform::logger::operator () (const char* str) const {
 	fputs(str, (FILE*) raw);
 	fflush((FILE*) raw);
 	return *this;
 }
 
-const platform::logger& platform::logger::operator () (char c) const {
+inline const platform::logger& platform::logger::operator () (char c) const {
 	fputc(c, (FILE*) raw);
 	fflush((FILE*) raw);
 	return *this;
 }
 
 namespace platform {
-	logger info{ stdout };
-	logger error{ stderr };
+	inline logger info{ stdout };
+	inline logger error{ stderr };
 }
 
-nuint platform::file_size(const char* path) {
+inline nuint platform::file_size(const char* path) {
 	FILE* f = fopen(path, "rb");
 	if(f == nullptr) {
 		platform::error("couldn't open file: ", path, '\n');
@@ -43,7 +43,7 @@ nuint platform::file_size(const char* path) {
 	return size;
 }
 
-void platform::read_file(const char* path, span<char> buff) {
+inline void platform::read_file(const char* path, span<char> buff) {
 	FILE* f = fopen(path, "rb");
 	if(f == nullptr) {
 		platform::error("couldn't open file ", path, '\n');
@@ -66,7 +66,7 @@ void platform::read_file(const char* path, span<char> buff) {
 	}
 }
 
-platform::image_info platform::read_image_info(const char* path) {
+inline platform::image_info platform::read_image_info(const char* path) {
 	FILE* f = fopen(path, "rb");
 	if(f == nullptr) {
 		platform::error("couldn't open file: ", path, '\n');
@@ -90,7 +90,7 @@ platform::image_info platform::read_image_info(const char* path) {
 	};
 }
 
-void platform::read_image_data(const char* path, span<char> buffer) {
+inline void platform::read_image_data(const char* path, span<char> buffer) {
 	FILE* f = fopen(path, "rb");
 	if(f == nullptr) {
 		platform::error("couldn't open file: ", path, '\n');
@@ -124,7 +124,7 @@ void platform::read_image_data(const char* path, span<char> buffer) {
 	png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 }
 
-span<vk::extension_name> platform::get_required_instance_extensions() {
+inline span<vk::extension_name> platform::get_required_instance_extensions() {
 	uint32 count;
 	glfwGetRequiredInstanceExtensions(&count);
 
@@ -135,9 +135,9 @@ span<vk::extension_name> platform::get_required_instance_extensions() {
 	};
 }
 
-GLFWwindow* window;
+inline GLFWwindow* window;
 
-vk::guarded_handle<vk::surface> platform::create_surface(vk::handle<vk::instance> instance) {
+inline vk::guarded_handle<vk::surface> platform::create_surface(vk::handle<vk::instance> instance) {
 	glfwSetErrorCallback([](int error_code, const char* description) {
 		platform::error("[glfw] error code: ", uint32(error_code), ", description: ", description).new_line();
 	});
@@ -167,20 +167,13 @@ vk::guarded_handle<vk::surface> platform::create_surface(vk::handle<vk::instance
 	return { vk::handle<vk::surface>{ (uint64) surface }, instance };
 }
 
-bool platform::should_close() {
+inline bool platform::should_close() {
 	return glfwWindowShouldClose(window);
 }
 
-math::matrix<float, 4, 4> platform::view_matrix {{
-	{ 1.0F, 0.0F, 0.0F, 0.0F },
-	{ 0.0F, 1.0F, 0.0F, 0.0F },
-	{ 0.0F, 0.0F, 1.0F, 0.0F },
-	{ 0.0F, 0.0F, 0.0F, 1.0F }
-}};
-
 #include <math/geometry/coordinate_system/cartesian/vector.hpp>
 
-math::matrix<float, 4, 4> rotation(float angle, math::geometry::cartesian::vector<float, 3> a) {
+inline math::matrix<float, 4, 4> rotation(float angle, math::geometry::cartesian::vector<float, 3> a) {
 	float c = __builtin_cos(angle);
 	float s = __builtin_sin(angle);
 
@@ -207,11 +200,11 @@ void platform::begin() {
 		rotation(camera_rotation[0], math::geometry::cartesian::vector<float, 3>(0.0F, 1.0F, 0.0F));
 }
 
-void platform::end() {
+inline void platform::end() {
 	glfwPollEvents();
 } 
 
-int main() {
+inline void platform::init() {
 	if (glfwInit()) {
 		platform::info("glfw is initialised").new_line();
 	}
@@ -224,7 +217,4 @@ int main() {
 		platform::error("vulkan is not supported").new_line();
 		abort();
 	}
-
-	entrypoint();
-	return 0;
 }

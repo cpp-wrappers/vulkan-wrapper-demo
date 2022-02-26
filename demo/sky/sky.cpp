@@ -3,27 +3,24 @@ src_dir=`dirname ${BASH_SOURCE[0]}`
 
 mkdir -p ${src_dir}/build
 
-glslangValidator -V100 -e main -o ${src_dir}/build/present.vert.spv -V ${src_dir}/present.vert
-glslangValidator -V100 -e main -o ${src_dir}/build/present.frag.spv -V ${src_dir}/present.frag
+glslangValidator -V100 -e main -o ${src_dir}/build/sky.vert.spv -V ${src_dir}/sky.vert
+glslangValidator -V100 -e main -o ${src_dir}/build/sky.frag.spv -V ${src_dir}/sky.frag
 
-. ${src_dir}/../build.sh $@ --asset present.vert.spv --asset present.frag.spv
+. ${src_dir}/../build.sh $@ --asset sky.vert.spv --asset sky.frag.spv
 
 exit 0
 #endif
 
-#include "platform.hpp"
+#include "platform_implementation.hpp"
 
-//#include <glm/mat4x4.hpp>
-//#include <glm/ext/matrix_clip_space.hpp>
-//#include <glm/ext/matrix_transform.hpp>
-//#include <glm/gtx/transform.hpp>
 #include <math/geometry/frustum.hpp>
 
 #include <time.h>
 
 static timespec start_time{};
 
-void entrypoint() {
+int main() {
+	platform::init();
 	using namespace vk;
 
 	clock_gettime(CLOCK_REALTIME, &start_time);
@@ -35,7 +32,7 @@ void entrypoint() {
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface isn't supported by queue family").new_line();
-		return;
+		return 1;
 	}
 
 	auto device = physical_device.create_guarded_device(
@@ -169,8 +166,8 @@ void entrypoint() {
 		} }
 	);
 
-	auto vertex_shader = platform::read_shader_module(device, "present.vert.spv");
-	auto fragment_shader = platform::read_shader_module(device, "present.frag.spv");
+	auto vertex_shader = platform::read_shader_module(device, "sky.vert.spv");
+	auto fragment_shader = platform::read_shader_module(device, "sky.frag.spv");
 
 	auto pipeline = device.create_guarded<vk::pipeline>(
 		subpass{ 0 },
@@ -292,7 +289,7 @@ void entrypoint() {
 			if(result.is_unexpected()) {
 				if(result.get_unexpected().suboptimal() || result.get_unexpected().out_of_date()) break;
 				platform::error("acquire next image").new_line();
-				return;
+				return 1;
 			}
 
 			vk::image_index image_index = result;
@@ -376,7 +373,7 @@ void entrypoint() {
 			}
 			if(present_result.error()) {
 				platform::error("present").new_line();
-				return;
+				return 1;
 			}
 
 			platform::end();

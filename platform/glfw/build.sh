@@ -20,6 +20,7 @@ declare -a args
 args+=(-std=c++20)
 args+=(-Wall)
 args+=(-Wextra)
+#args+=(-Os)
 args+=(-g)
 args+=(-nostdinc++)
 args+=(-Iplatform)
@@ -37,17 +38,6 @@ if [ -v sanitize ]; then
 fi
 
 mkdir -p "${platform_dir}/build"
-
-if ! $CXX \
-	-v \
-	-c \
-	${args[@]} \
-	-o ${platform_dir}/build/platform.o \
-	${platform_dir}/platform.cpp
-
-	then 
-	exit 1
-fi
 
 declare -a libs
 
@@ -67,7 +57,6 @@ mkdir -p "${src_dir}/build"
 if ! $CXX \
 	-v \
 	${args[@]} \
-	${platform_dir}/build/platform.o \
 	-o ${src_dir}/build/${src_name} \
 	${src_path} \
 	${libs[@]}
