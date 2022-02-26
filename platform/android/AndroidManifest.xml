@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<manifest xmlns:android="http://schemas.android.com/apk/res/android" package="ru.fewizz.vulkan">
+
+	<uses-feature android:name="android.hardware.sensor.gyroscope" android:required="true" />
+	<uses-feature android:name="android.hardware.sensor.compass" android:required="true" />
+	<uses-feature android:name="android.hardware.vulkan.version" android:version="0x400003" android:required="true" />
+
+	<application
+		android:label="Vulkan Experiments"
+		android:hasCode="false"
+	>
+		<activity android:name="android.app.NativeActivity" android:screenOrientation="landscape">
+			<meta-data
+				android:name="android.app.lib_name"
+				android:value="o"
+			/>
+			<intent-filter>
+				<action android:name="android.intent.action.MAIN" />
+				<category android:name="android.intent.category.LAUNCHER" />
+			</intent-filter>
+		</activity>
+	</application>
+</manifest>

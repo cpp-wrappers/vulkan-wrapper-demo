@@ -1,0 +1,15 @@
+-std=c++20
+-Wall
+-Wextra
+-fno-exceptions
+-nostdinc++
+-Iinclude
+-ftemplate-backtrace-limit=0
+-fuse-ld=lld
+-Iplatform
+-I../core/include
+-I../math/include
+-I../vulkan-wrapper/include
+-fmodules
+-Xclang -fimplicit-module-maps
+-Xclang -fprebuilt-module-path=./build
