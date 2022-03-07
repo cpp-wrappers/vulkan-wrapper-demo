@@ -124,20 +124,20 @@ inline void platform::read_image_data(const char* path, span<char> buffer) {
 	png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 }
 
-inline span<vk::extension_name> platform::get_required_instance_extensions() {
-	uint32 count;
-	glfwGetRequiredInstanceExtensions(&count);
+static inline GLFWwindow* window;
 
-	uint32 ignore;
-	return {
-		(vk::extension_name*) glfwGetRequiredInstanceExtensions(&ignore),
-		count
-	};
-}
+inline elements::of<vk::handle<vk::instance>, vk::handle<vk::surface>>
+platform::create_instance_and_surface() {
+	if (!glfwInit()) {
+		platform::error("glfw init failed").new_line();
+		abort();
+	}
 
-inline GLFWwindow* window;
+	if(!glfwVulkanSupported()) {
+		platform::error("vulkan is not supported").new_line();
+		abort();
+	}
 
-inline vk::guarded_handle<vk::surface> platform::create_surface(vk::handle<vk::instance> instance) {
 	glfwSetErrorCallback([](int error_code, const char* description) {
 		platform::error("[glfw] error code: ", uint32(error_code), ", description: ", description).new_line();
 	});
@@ -152,6 +152,16 @@ inline vk::guarded_handle<vk::surface> platform::create_surface(vk::handle<vk::i
 
 	VkSurfaceKHR surface;
 
+	uint32 count;
+	glfwGetRequiredInstanceExtensions(&count);
+	uint32 ignore;
+	span required_extensions {
+		(vk::extension_name*) glfwGetRequiredInstanceExtensions(&ignore),
+		count
+	};
+
+	auto instance = create_instance(required_extensions);
+
 	auto result = glfwCreateWindowSurface(
 		(VkInstance) vk::get_handle_value(instance),
 		window,
@@ -164,7 +174,7 @@ inline vk::guarded_handle<vk::surface> platform::create_surface(vk::handle<vk::i
 		abort();
 	}
 
-	return { vk::handle<vk::surface>{ (uint64) surface }, instance };
+	return { instance, vk::handle<vk::surface>{ surface } };
 }
 
 inline bool platform::should_close() {
@@ -195,26 +205,11 @@ void platform::begin() {
 	camera_rotation[0] = x / 100.0;
 	camera_rotation[1] = y / 100.0;
 
-	platform::view_matrix =
-		rotation(camera_rotation[1], math::geometry::cartesian::vector<float, 3>(1.0F, 0.0F, 0.0F)) *
-		rotation(camera_rotation[0], math::geometry::cartesian::vector<float, 3>(0.0F, 1.0F, 0.0F));
+	//platform::view_matrix =
+	//	rotation(camera_rotation[1], math::geometry::cartesian::vector<float, 3>(1.0F, 0.0F, 0.0F)) *
+	//	rotation(camera_rotation[0], math::geometry::cartesian::vector<float, 3>(0.0F, 1.0F, 0.0F));
 }
 
 inline void platform::end() {
 	glfwPollEvents();
-} 
-
-inline void platform::init() {
-	if (glfwInit()) {
-		platform::info("glfw is initialised").new_line();
-	}
-	else {
-		platform::error("glfw init failed").new_line();
-		abort();
-	}
-
-	if(!glfwVulkanSupported()) {
-		platform::error("vulkan is not supported").new_line();
-		abort();
-	}
 }

@@ -3,6 +3,7 @@
 #include <core/number.hpp>
 #include <core/c_string.hpp>
 #include <core/span.hpp>
+#include <core/box.hpp>
 
 #include <math/matrix.hpp>
 
@@ -66,7 +67,8 @@ namespace platform {
 			(*this)(str.begin());
 			return *this;
 		}
-	};
+
+	}; // logger
 
 	extern logger info;
 	extern logger error;
@@ -83,9 +85,6 @@ namespace platform {
 	image_info read_image_info(const char* path);
 	void read_image_data(const char* path, span<char> buffer);
 
-	span<vk::extension_name> get_required_instance_extensions();
-	vk::guarded_handle<vk::surface> create_surface(vk::handle<vk::instance>);
-
 	inline uint32 debug_report(
 		flag_enum<vk::debug_report_flag>, vk::debug_report_object_type, uint64, nuint,
 		int32, c_string, c_string message, void*
@@ -94,23 +93,27 @@ namespace platform {
 		return 0;
 	}
 
-	inline vk::handle<vk::instance> create_instance() {
-		span required_extensions = platform::get_required_instance_extensions();
-
+	inline vk::handle<vk::instance> create_instance(const auto& extensions) {
 		vk::layer_name validation_layer_name{ "VK_LAYER_KHRONOS_validation" };
-		bool validation_layer_is_supported = vk::is_instance_layer_supported(validation_layer_name);
+		vk::extension_name debug_report_extension_name{ "VK_EXT_debug_report" };
 
-		span<vk::layer_name> layers{ validation_layer_is_supported ? &validation_layer_name : nullptr, validation_layer_is_supported ? 1u : 0u };
+		auto result = view_box_of_capacity<vk::layer_name>(1, [&](auto layers) {
+			bool validation_layer_is_supported = vk::is_instance_layer_supported(validation_layer_name);
+			if(validation_layer_is_supported) {
+				layers.push_back(validation_layer_name);
+			}
+			
+			return view_box_of_capacity<vk::extension_name>(extensions.size() + 1, [&](auto extensions0) {
+				extensions0.push_back(extensions);
 
-		vk::extension_name extensions_storage[required_extensions.size() + 1]; // TODO
-		span extensions{ extensions_storage, required_extensions.size() + 1 };
+				if(vk::is_instance_extension_supported(debug_report_extension_name)) {
+					extensions0.push_back(debug_report_extension_name);
+				}
 
-		nuint i = 0;
-		for(; i < required_extensions.size(); ++i) extensions[i] = required_extensions[i];
-		vk::extension_name debug_report_extension_name = { "VK_EXT_debug_report" };
-		extensions[i] = debug_report_extension_name;
+				return vk::create<vk::instance>(layers, extensions0);
+			});
+		});
 
-		auto result = vk::create<vk::instance>(layers, extensions);
 		if(result.is_unexpected()) {
 			platform::error("couldn't create instance").new_line();
 			vk::default_unexpected_handler(result.get_unexpected());
@@ -119,7 +122,7 @@ namespace platform {
 		auto instance = result.get_expected();
 
 		if(vk::is_instance_extension_supported(debug_report_extension_name)) {
-			instance.create<vk::debug_report_callback>(
+			instance.template create<vk::debug_report_callback>(
 				vk::debug_report_flags{ vk::debug_report_flag::error, vk::debug_report_flag::warning, vk::debug_report_flag::information },
 				platform::debug_report 
 			);
@@ -128,9 +131,12 @@ namespace platform {
 		return instance;
 	}
 
-	inline vk::guarded_handle<vk::surface> create_surface(const vk::guarded_handle<vk::instance>& instance) {
-		return create_surface(instance.handle());
+	inline vk::handle<vk::instance> create_instance() {
+		return platform::create_instance(array<vk::extension_name, 0>{});
 	}
+
+	//span<vk::extension_name> get_surface_instance_extensions();
+	inline elements::of<vk::handle<vk::instance>, vk::handle<vk::surface>> create_instance_and_surface();
 
 	inline vk::guarded_handle<vk::shader_module> read_shader_module(const vk::guarded_handle<vk::device>& device, const char* path) {
 		auto size = platform::file_size(path);
@@ -139,10 +145,9 @@ namespace platform {
 		return device.create_guarded<vk::shader_module>(vk::code_size{ (uint32) size }, vk::code{ (uint32*) src } );
 	}
 
-	inline math::matrix<float, 4, 4> view_matrix;
+	//inline math::matrix<float, 4, 4> view_matrix;
 
 	inline bool should_close();
-	inline void init();
 	inline void begin();
 	inline void end();
 

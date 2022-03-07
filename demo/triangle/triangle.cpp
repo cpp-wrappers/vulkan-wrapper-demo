@@ -14,12 +14,12 @@ exit 0
 #include "platform_implementation.hpp"
 
 int main() {
-	platform::init();
-
 	using namespace vk;
 
-	auto instance = platform::create_instance();
-	auto surface = platform::create_surface(instance);
+	auto instance_and_surface = platform::create_instance_and_surface();
+	auto instance = instance_and_surface.get<vk::handle<vk::instance>>();
+	auto surface = instance_and_surface.get<vk::handle<vk::surface>>();
+
 	handle<physical_device> physical_device = instance.get_first_physical_device();
 	auto queue_family_index = physical_device.get_first_queue_family_index_with_capabilities(queue_flag::graphics);
 

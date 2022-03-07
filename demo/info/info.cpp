@@ -48,8 +48,6 @@ void object_block(auto name, auto f) {
 }
 
 int main() {
-	platform::init();
-
 	using namespace vk;
 
 	auto instance = platform::create_instance();
