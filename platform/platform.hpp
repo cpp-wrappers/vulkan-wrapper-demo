@@ -93,7 +93,7 @@ namespace platform {
 		return 0;
 	}
 
-	inline vk::handle<vk::instance> create_instance(const auto& extensions) {
+	inline vk::handle<vk::instance> create_instance(vk::api_version api_version, const auto& extensions) {
 		vk::layer_name validation_layer_name{ "VK_LAYER_KHRONOS_validation" };
 		vk::extension_name debug_report_extension_name{ "VK_EXT_debug_report" };
 
@@ -110,7 +110,13 @@ namespace platform {
 					extensions0.push_back(debug_report_extension_name);
 				}
 
-				return vk::create<vk::instance>(layers, extensions0);
+				return vk::create<vk::instance>(
+					vk::application_info {
+						api_version
+					},
+					layers,
+					extensions0
+				);
 			});
 		});
 
@@ -131,12 +137,19 @@ namespace platform {
 		return instance;
 	}
 
-	inline vk::handle<vk::instance> create_instance() {
-		return platform::create_instance(array<vk::extension_name, 0>{});
+	inline vk::handle<vk::instance> create_instance(vk::api_version api_version) {
+		return platform::create_instance(api_version, array<vk::extension_name, 0>{});
 	}
 
-	//span<vk::extension_name> get_surface_instance_extensions();
-	inline elements::of<vk::handle<vk::instance>, vk::handle<vk::surface>> create_instance_and_surface();
+	inline vk::handle<vk::instance> create_instance() {
+		return platform::create_instance(vk::api_version{ vk::major{ 1 }, vk::minor{ 0 }});
+	}
+
+	inline elements::of<vk::handle<vk::instance>, vk::handle<vk::surface>> create_instance_and_surface(vk::api_version api_version);
+
+	inline elements::of<vk::handle<vk::instance>, vk::handle<vk::surface>> create_instance_and_surface() {
+		return create_instance_and_surface(vk::api_version{ vk::major{ 1 }, vk::minor{ 0 }});
+	}
 
 	inline vk::guarded_handle<vk::shader_module> read_shader_module(const vk::guarded_handle<vk::device>& device, const char* path) {
 		auto size = platform::file_size(path);
