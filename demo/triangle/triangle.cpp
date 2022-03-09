@@ -17,8 +17,8 @@ int main() {
 	using namespace vk;
 
 	auto instance_and_surface = platform::create_instance_and_surface();
-	auto instance = instance_and_surface.get<vk::handle<vk::instance>>();
-	auto surface = instance_and_surface.get<vk::handle<vk::surface>>();
+	handle<instance> instance = instance_and_surface.get<vk::handle<vk::instance>>();
+	handle<surface> surface = instance_and_surface.get<vk::handle<vk::surface>>();
 
 	handle<physical_device> physical_device = instance.get_first_physical_device();
 	auto queue_family_index = physical_device.get_first_queue_family_index_with_capabilities(queue_flag::graphics);
@@ -134,7 +134,7 @@ int main() {
 				surface_format,
 				image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
 				sharing_mode::exclusive,
-				present_mode::mailbox,
+				present_mode::fifo,
 				clipped{ true },
 				surface_transform::identity,
 				composite_alpha::opaque,

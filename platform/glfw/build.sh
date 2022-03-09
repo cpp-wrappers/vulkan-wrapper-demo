@@ -47,6 +47,7 @@ args+=(-fuse-ld=lld)
 if [[ $OS == Windows_NT ]]; then
 	libs+=(-lglfw3)
 	libs+=(/c/Windows/System32/vulkan-1.dll)
+	#libs+=(-lvulkan)
 else
 	libs+=(-lglfw)
 	libs+=(-lvulkan)

@@ -17,17 +17,20 @@ exit 0
 
 #include <time.h>
 
-static timespec start_time{};
+inline timespec start_time{};
+inline math::matrix<float, 4, 4> view_matrix;
 
 int main() {
-	platform::init();
 	using namespace vk;
 
 	clock_gettime(CLOCK_REALTIME, &start_time);
 
-	auto instance = platform::create_instance();
-	auto surface = platform::create_surface(instance);
-	vk::handle<vk::physical_device> physical_device = instance.get_first_physical_device();
+	auto instance_and_surface = platform::create_instance_and_surface();
+
+	handle<instance> instance = instance_and_surface.get<handle<vk::instance>>();
+	handle<surface> surface = instance_and_surface.get<handle<vk::surface>>();
+
+	handle<physical_device> physical_device = instance.get_first_physical_device();
 	auto queue_family_index = physical_device.get_first_queue_family_index_with_capabilities(vk::queue_flag::graphics);
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
@@ -240,7 +243,7 @@ int main() {
 				surface_format,
 				image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
 				sharing_mode::exclusive,
-				present_mode::mailbox,
+				present_mode::fifo,
 				clipped{ true },
 				surface_transform::identity,
 				composite_alpha::opaque,
@@ -276,6 +279,16 @@ int main() {
 		nuint rendering_resource_index = 0;
 
 		while (!platform::should_close()) {
+			double x, y;
+			glfwGetCursorPos(window, &x, &y);
+			array<float, 2> camera_rotation;
+			camera_rotation[0] = x / 100.0;
+			camera_rotation[1] = y / 100.0;
+
+			view_matrix =
+				rotation(camera_rotation[1], math::geometry::cartesian::vector<float, 3>(1.0F, 0.0F, 0.0F)) *
+				rotation(camera_rotation[0], math::geometry::cartesian::vector<float, 3>(0.0F, 1.0F, 0.0F));
+
 			auto& rr = rendering_resources[rendering_resource_index];
 			
 			++rendering_resource_index %= rendering_resources.size();
@@ -307,7 +320,7 @@ int main() {
 				1000.0F
 			);
 
-			uniform_info_ptr->proj_view_inversed = (frustum * platform::view_matrix).inversed().transposed();
+			uniform_info_ptr->proj_view_inversed = (frustum * view_matrix).inversed().transposed();
 
 			timespec ts{};
 			clock_gettime(CLOCK_REALTIME, &ts);

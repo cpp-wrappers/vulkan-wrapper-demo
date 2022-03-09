@@ -1,12 +1,12 @@
 #include "vk/headers.hpp"
 
+#include "../platform.hpp"
+
 #include <GLFW/glfw3.h>
 #include <stdio.h>
 #include <string.h>
-#include <stdlib.h>
+//#include <stdlib.h>
 #include <png.h>
-
-#include "../platform.hpp"
 
 inline const platform::logger& platform::logger::string(const char* str, nuint length) const {
 	fwrite(str, 1, length, (FILE*) raw);
@@ -160,7 +160,7 @@ platform::create_instance_and_surface(vk::api_version api_version) {
 		count
 	};
 
-	auto instance = create_instance(api_version, required_extensions);
+	vk::handle<vk::instance> instance = create_instance(api_version, required_extensions);
 
 	auto result = glfwCreateWindowSurface(
 		(VkInstance) vk::get_handle_value(instance),
@@ -199,15 +199,6 @@ inline math::matrix<float, 4, 4> rotation(float angle, math::geometry::cartesian
 }
 
 void platform::begin() {
-	double x, y;
-	glfwGetCursorPos(window, &x, &y);
-	array<float, 2> camera_rotation;
-	camera_rotation[0] = x / 100.0;
-	camera_rotation[1] = y / 100.0;
-
-	//platform::view_matrix =
-	//	rotation(camera_rotation[1], math::geometry::cartesian::vector<float, 3>(1.0F, 0.0F, 0.0F)) *
-	//	rotation(camera_rotation[0], math::geometry::cartesian::vector<float, 3>(0.0F, 1.0F, 0.0F));
 }
 
 inline void platform::end() {

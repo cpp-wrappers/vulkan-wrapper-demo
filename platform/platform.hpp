@@ -99,10 +99,11 @@ namespace platform {
 
 		auto result = view_box_of_capacity<vk::layer_name>(1, [&](auto layers) {
 			bool validation_layer_is_supported = vk::is_instance_layer_supported(validation_layer_name);
+
 			if(validation_layer_is_supported) {
 				layers.push_back(validation_layer_name);
 			}
-			
+
 			return view_box_of_capacity<vk::extension_name>(extensions.size() + 1, [&](auto extensions0) {
 				extensions0.push_back(extensions);
 
@@ -142,23 +143,21 @@ namespace platform {
 	}
 
 	inline vk::handle<vk::instance> create_instance() {
-		return platform::create_instance(vk::api_version{ vk::major{ 1 }, vk::minor{ 0 }});
+		return platform::create_instance(vk::api_version{ vk::major{ 1 }, vk::minor{ 0 } });
 	}
 
 	inline elements::of<vk::handle<vk::instance>, vk::handle<vk::surface>> create_instance_and_surface(vk::api_version api_version);
 
 	inline elements::of<vk::handle<vk::instance>, vk::handle<vk::surface>> create_instance_and_surface() {
-		return create_instance_and_surface(vk::api_version{ vk::major{ 1 }, vk::minor{ 0 }});
+		return create_instance_and_surface(vk::api_version{ vk::major{ 1 }, vk::minor{ 0 } });
 	}
 
 	inline vk::guarded_handle<vk::shader_module> read_shader_module(const vk::guarded_handle<vk::device>& device, const char* path) {
 		auto size = platform::file_size(path);
 		char src[size];
 		platform::read_file(path, span{ src, size });
-		return device.create_guarded<vk::shader_module>(vk::code_size{ (uint32) size }, vk::code{ (uint32*) src } );
+		return device.create_guarded<vk::shader_module>(vk::code_size{ (uint32) size }, vk::code{ (uint32*) src });
 	}
-
-	//inline math::matrix<float, 4, 4> view_matrix;
 
 	inline bool should_close();
 	inline void begin();
