@@ -21,7 +21,7 @@ int main() {
 	auto instance = platform::create_instance();
 	auto surface = platform::create_surface(instance);
 	handle<physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.get_first_queue_family_index_with_capabilities(queue_flag::graphics);
+	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
 
 	platform::info("graphics family index: ", (uint32)queue_family_index).new_line();
 
@@ -78,7 +78,7 @@ int main() {
 	};
 
 	guarded_handle<device_memory> device_memory = device.allocate_guarded<vk::device_memory>(
-		physical_device.get_index_of_first_memory_type(
+		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::host_visible },
 			device.get_buffer_memory_requirements(buffer).memory_type_indices
 		),
