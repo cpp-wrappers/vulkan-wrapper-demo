@@ -16,8 +16,6 @@ exit 0
 #include "platform_implementation.hpp"
 
 int main() {
-	platform::init();
-
 	using namespace vk;
 
 	auto instance = platform::create_instance();

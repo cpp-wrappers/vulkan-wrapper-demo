@@ -1,6 +1,6 @@
 #include "vk/headers.hpp"
 
-#include "../platform.hpp"
+#include "platform/platform.hpp"
 
 #include <GLFW/glfw3.h>
 #include <stdio.h>

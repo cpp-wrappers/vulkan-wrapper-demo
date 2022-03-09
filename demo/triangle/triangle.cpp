@@ -21,7 +21,7 @@ int main() {
 	handle<surface> surface = instance_and_surface.get<vk::handle<vk::surface>>();
 
 	handle<physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.get_first_queue_family_index_with_capabilities(queue_flag::graphics);
+	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
 
 	platform::info("graphics family index: ", (uint32)queue_family_index).new_line();
 

@@ -7,6 +7,7 @@
 -ftemplate-backtrace-limit=0
 -fuse-ld=lld
 -Iplatform
+-I./
 -I../core/include
 -I../math/include
 -I../vulkan-wrapper/include
