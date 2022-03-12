@@ -6,6 +6,9 @@ while [ $# -gt 0 ]; do
 	--sanitize)
 		sanitize=1
 		;;
+	--verbose)
+		verbose=1
+		;;
 	esac
 
 	shift
@@ -33,6 +36,10 @@ args+=(-I${root_dir}/../math/include)
 args+=(-I${root_dir}/../vulkan-wrapper/include)
 args+=(-Xclang -fimplicit-module-maps)
 
+if [ -v verbose ]; then
+	args+=(-v)
+fi
+
 if [ -v sanitize ]; then
 	args+=(-fsanitize=address)
 	args+=(-fsanitize=undefined)
@@ -57,7 +64,6 @@ fi
 mkdir -p "${src_dir}/build"
 
 if ! $CXX \
-	-v \
 	${args[@]} \
 	-o ${src_dir}/build/${src_name} \
 	${src_path} \

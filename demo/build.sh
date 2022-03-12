@@ -8,13 +8,11 @@ platform=$1
 shift
 
 src_path=`realpath ${BASH_SOURCE[1]}`
-echo "src_path: ${src_path}"
 src_dir=`dirname ${src_path}`
 src_base=`basename ${src_path}`
 src_name=${src_base%.*}
 
 global_build_script_path=`realpath ${BASH_SOURCE[0]}`
-echo "global build script path: ${global_build_script_path}"
 global_build_script_dir=`dirname ${global_build_script_path}`
 
 root_dir=`realpath ${global_build_script_dir}/../`
@@ -27,7 +25,5 @@ if ! [ -d ${platform_dir} ]; then
 fi
 
 platform_path=${platform_dir}/build.sh
-
-echo "building for platform: ${platform}"
 
 . ${platform_path} $@
