@@ -86,9 +86,17 @@ int main() {
 		features_1_2
 	);
 
+	auto command_pool = device.create_guarded<vk::command_pool>(queue_family_index);
+	auto command_buffer = command_pool.allocate_guarded<vk::command_buffer>(command_buffer_level::primary);
+	auto queue = device.get_queue(queue_family_index, vk::queue_index{ 0 });
+
 	struct blas_data_t {
-		math::vector<float, 3> vertices[3];
-		uint32 indices[3];
+		math::vector<float, 3> vertices[3] {
+			{-1.0F, 1.0F, 0.0F },
+			{ 0.0F,-1.0F, 0.0F },
+			{ 1.0F, 1.0F, 0.0F }
+		};
+		uint32 indices[3]{ 0, 1, 2 };
 		transform_matrix matrix {{
 			{ 1.0F, 0.0F, 0.0F, 0.0F },
 			{ 0.0F, 1.0F, 0.0F, 0.0F },
@@ -186,6 +194,29 @@ int main() {
 		&primitive_counts
 	);
 
+	auto blas_scratch_buffer = device.create_guarded<buffer>(
+		buffer_size {
+			blas_build_sizes.acceleration_structure_size
+		},
+		buffer_usages{ buffer_usage::storage_buffer, buffer_usage::shader_device_address },
+		sharing_mode::exclusive
+	);
+
+	auto blas_scratch_memory = device.allocate_guarded<device_memory>(
+		physical_device.find_first_memory_type_index(
+			memory_properties{ memory_property::device_local },
+			device.get_buffer_memory_requirements(blas_scratch_buffer).memory_type_indices
+		),
+		memory_size{ blas_build_sizes.acceleration_structure_size },
+		memory_allocate_flags_info {
+			.flags = memory_allocate_flags {
+				memory_allocate_flag::address
+			}
+		}
+	);
+
+	blas_scratch_buffer.bind_memory(blas_scratch_memory);
+
 	auto blas_buffer = device.create_guarded<buffer>(
 		buffer_size {
 			blas_build_sizes.acceleration_structure_size
@@ -204,11 +235,31 @@ int main() {
 		}
 	);
 
+	blas_buffer.bind_memory(blas_memory);
+
 	auto blas = device.create_guarded<acceleration_structure>(
 		blas_buffer,
 		memory_size{ blas_build_sizes.acceleration_structure_size },
 		acceleration_structure_type::bottom_level
 	);
+
+	blas_geometry_info.dst = vk::get_handle(blas);
+	blas_geometry_info.scratch_data.device_address = blas_scratch_buffer.get_device_address();
+
+	command_buffer.begin();
+
+	const acceleration_structure_build_range_info blas_build_range_info {
+		.primitive_count = 3
+	};
+	command_buffer.cmd_build_acceleration_structure(
+		device,
+		array{ blas_geometry_info },
+		array{ &blas_build_range_info }
+	);
+	command_buffer.end();
+
+	queue.submit(command_buffer);
+	device.wait_idle();
 
 	
 
