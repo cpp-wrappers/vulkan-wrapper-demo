@@ -13,8 +13,9 @@ exit 0
 
 #include "platform_implementation.hpp"
 
-#include "blas.hpp"
-#include "tlas.hpp"
+#include "create_blas.hpp"
+#include "create_tlas.hpp"
+#include "create_storage_image.hpp"
 
 #include "vk/physical_device/extension_properties/acceleration_structure.hpp"
 #include "vk/physical_device/extension_properties/ray_tracing_pipeline.hpp"
@@ -28,7 +29,6 @@ int main() {
 	using namespace vk;
 
 	auto [instance, surface] = platform::create_instance_and_surface(api_version{ major{1}, minor{2} });
-
 	auto physical_device = instance.get_first_physical_device();
 
 	physical_device_acceleration_structure_properties as_props{};
@@ -90,14 +90,14 @@ int main() {
 			command_pool_create_flag::transient
 		}
 	);
-	auto command_buffer = command_pool.allocate_guarded<vk::command_buffer>(command_buffer_level::primary);
-	auto queue = device.get_queue(queue_family_index, vk::queue_index{ 0 });
 
-	// BLAS
+	auto command_buffer = command_pool.allocate_guarded<vk::command_buffer>(command_buffer_level::primary);
+	auto queue = device.get_queue(queue_family_index, queue_index{ 0 });
 
 	as_t blas = create_blas(device, physical_device, command_buffer, queue);
-
-	// TLAS
-
 	as_t tlas = create_tlas(device, physical_device, command_buffer, queue, blas);
+
+	surface_capabilities surface_capabilities = physical_device.get_surface_capabilities(surface);
+
+	storage_image_t storage_image = create_storage_image(surface_capabilities.current_extent, device, physical_device, command_buffer, queue);
 }

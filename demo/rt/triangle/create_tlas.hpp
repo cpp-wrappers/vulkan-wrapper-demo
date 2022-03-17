@@ -145,5 +145,5 @@ inline as_t create_tlas(
 	queue.submit(command_buffer);
 	device.wait_idle();
 
-	return move(tlas);
+	return tlas;
 }

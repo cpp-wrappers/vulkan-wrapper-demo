@@ -2,7 +2,8 @@
 
 #include "as.hpp"
 
-inline as_t create_blas(
+inline as_t
+create_blas(
 	vk::guarded_handle<vk::device>& device,
 	vk::handle<vk::physical_device>& physical_device,
 	vk::guarded_handle<vk::command_buffer>& command_buffer,
@@ -181,5 +182,5 @@ inline as_t create_blas(
 	queue.submit(command_buffer);
 	device.wait_idle();
 
-	return move(blas);
+	return blas;
 }
