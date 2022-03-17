@@ -16,9 +16,7 @@ exit 0
 int main() {
 	using namespace vk;
 
-	auto instance_and_surface = platform::create_instance_and_surface();
-	handle<instance> instance = instance_and_surface.get<vk::handle<vk::instance>>();
-	handle<surface> surface = instance_and_surface.get<vk::handle<vk::surface>>();
+	auto [instance, surface] = platform::create_instance_and_surface();
 
 	handle<physical_device> physical_device = instance.get_first_physical_device();
 	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
@@ -49,7 +47,7 @@ int main() {
 				surface_format.format,
 				load_op{ attachment_load_op::clear },
 				store_op{ attachment_store_op::store },
-				final_layout{ image_layout::present_src_khr }
+				final_layout{ image_layout::present_src }
 			}
 		},
 		array{

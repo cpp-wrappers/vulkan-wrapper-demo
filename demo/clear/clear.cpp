@@ -10,25 +10,22 @@ exit 0
 #include <string.h>
 
 int main() {
-	platform::init();
-
 	using namespace vk;
 
-	auto instance = platform::create_instance();
+	auto [instance, surface] = platform::create_instance_and_surface();
 	vk::handle<vk::physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.get_first_queue_family_index_with_capabilities(queue_flag::graphics);
+	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
+
+	if(!physical_device.get_surface_support(surface, queue_family_index)) {
+		platform::error("surface isn't supported").new_line();
+		return 1;
+	}
+
 	auto device = physical_device.create_guarded_device(
 		queue_family_index,
 		queue_priority{ 1.0F },
 		extension_name { "VK_KHR_swapchain" }
 	);
-
-	auto surface = platform::create_surface(instance);
-
-	if(!physical_device.get_surface_support(surface, queue_family_index)) {
-		platform::error("surface is not supported").new_line();
-		return 1;
-	}
 
 	auto surface_format = physical_device.get_first_surface_format(surface);
 
@@ -80,7 +77,7 @@ int main() {
 			.src_access = src_access{ access::transfer_write },
 			.dst_access = dst_access{ access::memory_read },
 			.old_layout = old_layout{ image_layout::transfer_dst_optimal },
-			.new_layout = new_layout{ image_layout::present_src_khr },
+			.new_layout = new_layout{ image_layout::present_src },
 			.src_queue_family_index{ VK_QUEUE_FAMILY_IGNORED },
 			.dst_queue_family_index{ VK_QUEUE_FAMILY_IGNORED },
 			.image = images[i],

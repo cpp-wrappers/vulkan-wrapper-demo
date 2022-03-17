@@ -18,8 +18,7 @@ exit 0
 int main() {
 	using namespace vk;
 
-	auto instance = platform::create_instance();
-	auto surface = platform::create_surface(instance);
+	auto [instance, surface] = platform::create_instance_and_surface();
 	handle<physical_device> physical_device = instance.get_first_physical_device();
 	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
 
@@ -80,7 +79,7 @@ int main() {
 	guarded_handle<device_memory> device_memory = device.allocate_guarded<vk::device_memory>(
 		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::host_visible },
-			device.get_buffer_memory_requirements(buffer).memory_type_indices
+			buffer.get_memory_requirements().memory_type_indices
 		),
 		memory_size{ sizeof(data) }
 	);
@@ -115,7 +114,7 @@ int main() {
 			surface_format.format,
 			load_op{ attachment_load_op::clear },
 			store_op{ attachment_store_op::store },
-			final_layout{ image_layout::present_src_khr }
+			final_layout{ image_layout::present_src }
 		} }
 	);
 
@@ -214,7 +213,7 @@ int main() {
 				surface_format,
 				image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
 				sharing_mode::exclusive,
-				present_mode::mailbox,
+				present_mode::fifo,
 				clipped{ true },
 				surface_transform::identity,
 				composite_alpha::opaque,

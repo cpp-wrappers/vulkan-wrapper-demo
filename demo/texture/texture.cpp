@@ -15,14 +15,11 @@ exit 0
 #include "platform_implementation.hpp"
 
 int main() {
-	platform::init();
-
 	using namespace vk;
 
-	auto instance = platform::create_instance();
-	auto surface = platform::create_surface(instance);
+	auto [instance, surface] = platform::create_instance_and_surface();
 	handle<physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.get_first_queue_family_index_with_capabilities(queue_flag::graphics);
+	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
 
 	platform::info("graphics family index: ", (uint32)queue_family_index).new_line();
 
@@ -63,9 +60,9 @@ int main() {
 
 	auto image_memory = device.allocate_guarded<device_memory>(
 		memory_size{ image_info.size },
-		physical_device.get_index_of_first_memory_type(
+		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::device_local },
-			device.get_image_memory_requirements(image).memory_type_indices
+			image.get_memory_requirements().memory_type_indices
 		)
 	);
 
@@ -79,9 +76,9 @@ int main() {
 
 	auto staging_buffer_memory = device.allocate_guarded<device_memory>(
 		memory_size{ image_info.size },
-		physical_device.get_index_of_first_memory_type(
+		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::host_visible },
-			device.get_buffer_memory_requirements(staging_buffer).memory_type_indices
+			staging_buffer.get_memory_requirements().memory_type_indices
 		)
 	);
 
@@ -140,9 +137,9 @@ int main() {
 	};
 
 	guarded_handle<device_memory> device_memory = device.allocate_guarded<vk::device_memory>(
-		physical_device.get_index_of_first_memory_type(
+		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::host_visible },
-			device.get_buffer_memory_requirements(buffer).memory_type_indices
+			buffer.get_memory_requirements().memory_type_indices
 		),
 		memory_size{ sizeof(data) }
 	);
@@ -177,7 +174,7 @@ int main() {
 			surface_format.format,
 			load_op{ attachment_load_op::clear },
 			store_op{ attachment_store_op::store },
-			final_layout{ image_layout::present_src_khr }
+			final_layout{ image_layout::present_src }
 		} }
 	);
 
@@ -372,7 +369,7 @@ int main() {
 				surface_format,
 				image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
 				sharing_mode::exclusive,
-				present_mode::mailbox,
+				present_mode::fifo,
 				clipped{ true },
 				surface_transform::identity,
 				composite_alpha::opaque,
