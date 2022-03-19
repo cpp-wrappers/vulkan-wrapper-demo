@@ -3,8 +3,9 @@ src_dir=`dirname ${BASH_SOURCE[0]}`
 
 mkdir -p ${src_dir}/build
 
-#glslangValidator -e main -o ${src_dir}/build/triangle.vert.spv -V ${src_dir}/triangle.vert
-#glslangValidator -e main -o ${src_dir}/build/triangle.frag.spv -V ${src_dir}/triangle.frag
+glslangValidator --target-env spirv1.4 -e main -o ${src_dir}/build/gen.rgen.spv -V ${src_dir}/gen.rgen
+glslangValidator --target-env spirv1.4 -e main -o ${src_dir}/build/miss.rmiss.spv -V ${src_dir}/miss.rmiss
+glslangValidator --target-env spirv1.4 -e main -o ${src_dir}/build/closest.rchit.spv -V ${src_dir}/closest.rchit
 
 . ${src_dir}/../../build.sh $@
 
@@ -16,6 +17,7 @@ exit 0
 #include "create_blas.hpp"
 #include "create_tlas.hpp"
 #include "create_storage_image.hpp"
+#include "create_pipeline.hpp"
 
 #include "vk/physical_device/extension_properties/acceleration_structure.hpp"
 #include "vk/physical_device/extension_properties/ray_tracing_pipeline.hpp"
@@ -100,4 +102,6 @@ int main() {
 	surface_capabilities surface_capabilities = physical_device.get_surface_capabilities(surface);
 
 	storage_image_t storage_image = create_storage_image(surface_capabilities.current_extent, device, physical_device, command_buffer, queue);
+
+	create_raytracing_pipeline(device);
 }

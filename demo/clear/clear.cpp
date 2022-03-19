@@ -13,7 +13,7 @@ int main() {
 	using namespace vk;
 
 	auto [instance, surface] = platform::create_instance_and_surface();
-	vk::handle<vk::physical_device> physical_device = instance.get_first_physical_device();
+	handle<vk::physical_device> physical_device = instance.get_first_physical_device();
 	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {

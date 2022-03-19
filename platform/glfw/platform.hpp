@@ -126,7 +126,7 @@ inline void platform::read_image_data(const char* path, span<char> buffer) {
 
 static inline GLFWwindow* window;
 
-inline elements::of<vk::handle<vk::instance>, vk::handle<vk::surface>>
+inline elements::of<handle<vk::instance>, handle<vk::surface>>
 platform::create_instance_and_surface(vk::api_version api_version) {
 	if (!glfwInit()) {
 		platform::error("glfw init failed").new_line();
@@ -160,7 +160,7 @@ platform::create_instance_and_surface(vk::api_version api_version) {
 		count
 	};
 
-	vk::handle<vk::instance> instance = create_instance(api_version, required_extensions);
+	handle<vk::instance> instance = create_instance(api_version, required_extensions);
 
 	auto result = glfwCreateWindowSurface(
 		(VkInstance) vk::get_handle_value(instance),
@@ -174,7 +174,7 @@ platform::create_instance_and_surface(vk::api_version api_version) {
 		abort();
 	}
 
-	return { instance, vk::handle<vk::surface>{ surface } };
+	return { instance, handle<vk::surface>{ surface } };
 }
 
 inline bool platform::should_close() {

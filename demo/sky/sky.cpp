@@ -31,7 +31,7 @@ int main() {
 	handle<surface> surface = instance_and_surface.get<handle<vk::surface>>();
 
 	handle<physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.get_first_queue_family_index_with_capabilities(vk::queue_flag::graphics);
+	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(vk::queue_flag::graphics);
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface isn't supported by queue family").new_line();
@@ -55,11 +55,11 @@ int main() {
 		sharing_mode::exclusive
 	);
 
-	auto uniform_buffer_memory_requirements = device.get_buffer_memory_requirements(uniform_buffer);
+	auto uniform_buffer_memory_requirements = uniform_buffer.get_memory_requirements();
 
 	auto memory_for_uniform_buffer = device.allocate_guarded<device_memory>(
 		memory_size{ uniform_buffer_memory_requirements.size },
-		physical_device.get_index_of_first_memory_type(
+		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::device_local },
 			uniform_buffer_memory_requirements.memory_type_indices
 		)
@@ -73,11 +73,11 @@ int main() {
 		sharing_mode::exclusive
 	);
 
-	auto staging_uniform_buffer_memory_requirements = device.get_buffer_memory_requirements(staging_uniform_buffer);
+	auto staging_uniform_buffer_memory_requirements = staging_uniform_buffer.get_memory_requirements();
 
 	auto memory_for_staging_uniform_buffer = device.allocate_guarded<device_memory>(
 		memory_size{ staging_uniform_buffer_memory_requirements.size },
-		physical_device.get_index_of_first_memory_type(
+		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::host_visible },
 			staging_uniform_buffer_memory_requirements.memory_type_indices
 		)
@@ -165,7 +165,7 @@ int main() {
 			surface_format.format,
 			load_op{ attachment_load_op::clear },
 			store_op{ attachment_store_op::store },
-			final_layout{ image_layout::present_src_khr }
+			final_layout{ image_layout::present_src }
 		} }
 	);
 
