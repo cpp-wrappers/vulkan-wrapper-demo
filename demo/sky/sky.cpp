@@ -38,7 +38,7 @@ int main() {
 		return 1;
 	}
 
-	auto device = physical_device.create_guarded_device(
+	auto device = physical_device.create_device(
 		queue_family_index,
 		queue_priority{ 1.0 },
 		extension_name{ "VK_KHR_swapchain" }
@@ -49,15 +49,15 @@ int main() {
 		float t;
 	};
 
-	auto uniform_buffer = device.create_guarded<vk::buffer>(
+	auto uniform_buffer = device.create<vk::buffer>(
 		buffer_size{ sizeof(uniform_info_t) },
 		buffer_usages{ buffer_usage::uniform_buffer, buffer_usage::transfer_dst },
 		sharing_mode::exclusive
 	);
 
-	auto uniform_buffer_memory_requirements = uniform_buffer.get_memory_requirements();
+	auto uniform_buffer_memory_requirements = device.get_memory_requirements(uniform_buffer);
 
-	auto memory_for_uniform_buffer = device.allocate_guarded<device_memory>(
+	auto memory_for_uniform_buffer = device.allocate<device_memory>(
 		memory_size{ uniform_buffer_memory_requirements.size },
 		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::device_local },
@@ -65,17 +65,17 @@ int main() {
 		)
 	);
 
-	uniform_buffer.bind_memory(memory_for_uniform_buffer);
+	device.bind_memory(uniform_buffer, memory_for_uniform_buffer);
 
-	auto staging_uniform_buffer = device.create_guarded<buffer>(
+	auto staging_uniform_buffer = device.create<buffer>(
 		buffer_size{ sizeof(uniform_info_t) },
 		buffer_usages{ buffer_usage::transfer_src },
 		sharing_mode::exclusive
 	);
 
-	auto staging_uniform_buffer_memory_requirements = staging_uniform_buffer.get_memory_requirements();
+	auto staging_uniform_buffer_memory_requirements = device.get_memory_requirements(staging_uniform_buffer);
 
-	auto memory_for_staging_uniform_buffer = device.allocate_guarded<device_memory>(
+	auto memory_for_staging_uniform_buffer = device.allocate<device_memory>(
 		memory_size{ staging_uniform_buffer_memory_requirements.size },
 		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::host_visible },
@@ -83,15 +83,16 @@ int main() {
 		)
 	);
 
-	staging_uniform_buffer.bind_memory(memory_for_staging_uniform_buffer);
+	device.bind_memory(staging_uniform_buffer, memory_for_staging_uniform_buffer);
 
 	uniform_info_t* uniform_info_ptr;
-	memory_for_staging_uniform_buffer.map(
+	device.map_memory(
+		memory_for_staging_uniform_buffer,
 		whole_size,
 		(void**) &uniform_info_ptr
 	);
 
-	auto set_layout = device.create_guarded<descriptor_set_layout>(
+	auto set_layout = device.create<descriptor_set_layout>(
 		array {
 			descriptor_set_layout_binding {
 				descriptor_binding{ 0 },
@@ -101,7 +102,7 @@ int main() {
 		}
 	);
 
-	auto descriptor_pool = device.create_guarded<vk::descriptor_pool>(
+	auto descriptor_pool = device.create<vk::descriptor_pool>(
 		max_sets{ 1 },
 		array {
 			descriptor_pool_size {
@@ -111,7 +112,7 @@ int main() {
 		}
 	);
 
-	auto set = descriptor_pool.allocate_descriptor_set(set_layout);
+	auto set = device.allocate<descriptor_set>(descriptor_pool, set_layout);
 
 	device.update_descriptor_set(
 		write_descriptor_set {
@@ -121,15 +122,15 @@ int main() {
 			descriptor_type::uniform_buffer,
 			array {
 				descriptor_buffer_info {
-					.buffer = get_handle(uniform_buffer),
-					.size{ whole_size }
+					uniform_buffer,
+					whole_size
 				}
 			}
 		}
 	);
 
-	auto pipeline_layout = device.create_guarded<vk::pipeline_layout>(
-		array{ get_handle(set_layout) }
+	auto pipeline_layout = device.create<vk::pipeline_layout>(
+		array{ set_layout }
 	);
 
 	array dynamic_states { dynamic_state::viewport, dynamic_state::scissor };
@@ -151,12 +152,12 @@ int main() {
 		color_attachment_reference{ 0, image_layout::color_attachment_optimal }
 	};
 
-	auto render_pass = device.create_guarded<vk::render_pass>(
+	auto render_pass = device.create<vk::render_pass>(
 		array{ subpass_description {
 			color_attachments
 		} },
 		array{ subpass_dependency {
-			src_subpass{ VK_SUBPASS_EXTERNAL },
+			src_subpass{ subpass_external},
 			dst_subpass{ 0 },
 			src_stages{ pipeline_stage::color_attachment_output },
 			dst_stages{ pipeline_stage::color_attachment_output }
@@ -172,7 +173,7 @@ int main() {
 	auto vertex_shader = platform::read_shader_module(device, "sky.vert.spv");
 	auto fragment_shader = platform::read_shader_module(device, "sky.frag.spv");
 
-	auto pipeline = device.create_guarded<vk::pipeline>(
+	auto pipeline = device.create<vk::pipeline>(
 		subpass{ 0 },
 		pipeline_layout, render_pass,
 		primitive_topology::triangle_strip,
@@ -205,7 +206,7 @@ int main() {
 		pipeline_dynamic_state_create_info { dynamic_states }
 	);
 
-	auto command_pool = device.create_guarded<vk::command_pool>(
+	auto command_pool = device.create<vk::command_pool>(
 		queue_family_index,
 		command_pool_create_flags {
 			command_pool_create_flag::reset_command_buffer,
@@ -214,20 +215,20 @@ int main() {
 	);
 
 	struct rendering_resource {
-		guarded_handle<vk::command_buffer> command_buffer;
-		guarded_handle<vk::semaphore> image_acquire;
-		guarded_handle<vk::semaphore> finish;
-		guarded_handle<vk::fence> fence;
-		guarded_handle<vk::framebuffer> framebuffer;
+		handle<vk::command_buffer> command_buffer;
+		handle<vk::semaphore> image_acquire;
+		handle<vk::semaphore> finish;
+		handle<vk::fence> fence;
+		handle<vk::framebuffer> framebuffer;
 	};
 
 	array<rendering_resource, 2> rendering_resources{};
 
 	for(auto& rr : rendering_resources) {
-		rr.command_buffer = command_pool.allocate_guarded<vk::command_buffer>(command_buffer_level::primary);
+		rr.command_buffer = device.allocate<vk::command_buffer>(command_pool, command_buffer_level::primary);
 	}
 
-	guarded_handle<vk::swapchain> swapchain{};
+	handle<vk::swapchain> swapchain{};
 	auto queue = device.get_queue(queue_family_index, queue_index{ 0 });
 
 	while(!platform::should_close()) {
@@ -236,7 +237,7 @@ int main() {
 		{
 			auto old_swapchain = move(swapchain);
 
-			swapchain = device.create_guarded<vk::swapchain>(
+			swapchain = device.create<vk::swapchain>(
 				surface,
 				surface_capabilities.min_image_count,
 				surface_capabilities.current_extent,
@@ -251,29 +252,27 @@ int main() {
 			);
 		}
 
-		uint32 images_count = (uint32)swapchain.get_image_count();
+		uint32 images_count = (uint32) device.get_swapchain_image_count(swapchain);
 
 		handle<vk::image> images_storage[images_count];
 		span images{ images_storage, images_count };
-		swapchain.get_images(images);
+		device.get_swapchain_images(swapchain, images);
 
-		guarded_handle<vk::image_view> image_views_raw[images_count];
+		handle<vk::image_view> image_views_raw[images_count];
 		span image_views{ image_views_raw, images_count };
 
 		for(nuint i = 0; i < images_count; ++i) {
-			image_views[i] = device.create_guarded<vk::image_view>(
+			image_views[i] = device.create<vk::image_view>(
 				images[i],
 				surface_format.format,
-				image_view_type::two_d,
-				component_mapping{},
-				image_subresource_range{ image_aspects{ image_aspect::color } }
+				image_view_type::two_d
 			);
 		}
 
 		for(auto& rr : rendering_resources) {
-			rr.fence = device.create_guarded<vk::fence>(fence_create_flag::signaled);
-			rr.image_acquire = device.create_guarded<vk::semaphore>();
-			rr.finish = device.create_guarded<vk::semaphore>();
+			rr.fence = device.create<vk::fence>(fence_create_flag::signaled);
+			rr.image_acquire = device.create<vk::semaphore>();
+			rr.finish = device.create<vk::semaphore>();
 		}
 
 		nuint rendering_resource_index = 0;
@@ -295,10 +294,10 @@ int main() {
 			
 			platform::begin();
 
-			rr.fence.wait();
-			rr.fence.reset();
+			device.wait_for_fence(rr.fence);
+			device.reset_fence(rr.fence);
 
-			auto result = swapchain.try_acquire_next_image(rr.image_acquire);
+			auto result = device.try_acquire_next_image(swapchain, rr.image_acquire);
 			if(result.is_unexpected()) {
 				if(result.get_unexpected().suboptimal() || result.get_unexpected().out_of_date()) break;
 				platform::error("acquire next image").new_line();
@@ -307,9 +306,9 @@ int main() {
 
 			vk::image_index image_index = result;
 
-			rr.framebuffer = device.create_guarded<vk::framebuffer>(
+			rr.framebuffer = device.create<vk::framebuffer>(
 				render_pass,
-				array{ image_views[(uint32)image_index].handle() },
+				array{ image_views[(uint32)image_index] },
 				extent<3>{ surface_capabilities.current_extent.width(), surface_capabilities.current_extent.height(), 1 }
 			);
 
@@ -328,15 +327,15 @@ int main() {
 			t += (ts.tv_nsec / 1000000.0F - start_time.tv_nsec / 1000000.0F) / 1000.0F;
 
 			uniform_info_ptr->t = t;
-			memory_for_staging_uniform_buffer.flush_mapped(staging_uniform_buffer_memory_requirements.size);
+			device.flush_mapped_memory_range(memory_for_staging_uniform_buffer, staging_uniform_buffer_memory_requirements.size);
 
 			auto& command_buffer = rr.command_buffer;
 
 			command_buffer
 				.begin(vk::command_buffer_usage::one_time_submit)
 				.cmd_copy_buffer(
-					src_buffer{ get_handle(staging_uniform_buffer) },
-					dst_buffer{ get_handle(uniform_buffer) },
+					src_buffer{ staging_uniform_buffer },
+					dst_buffer{ uniform_buffer },
 					array{
 						buffer_copy {
 							.size{ sizeof(uniform_info_t) }
@@ -370,7 +369,8 @@ int main() {
 
 			queue.submit(
 				command_buffer,
-				wait_semaphore{ rr.image_acquire }, signal_semaphore{ rr.finish },
+				wait_semaphore{ rr.image_acquire },
+				signal_semaphore{ rr.finish },
 				pipeline_stages{ pipeline_stage::color_attachment_output },
 				rr.fence
 			);

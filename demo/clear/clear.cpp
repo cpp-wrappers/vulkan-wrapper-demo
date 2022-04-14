@@ -3,7 +3,6 @@
 exit 0
 #endif
 
-#include "vk/instance/guarded_handle.hpp"
 #include "vk/instance/layer_properties.hpp"
 
 #include "platform_implementation.hpp"
@@ -21,7 +20,7 @@ int main() {
 		return 1;
 	}
 
-	auto device = physical_device.create_guarded_device(
+	auto device = physical_device.create_device(
 		queue_family_index,
 		queue_priority{ 1.0F },
 		extension_name { "VK_KHR_swapchain" }
@@ -31,7 +30,7 @@ int main() {
 
 	surface_capabilities surface_capabilities = physical_device.get_surface_capabilities(surface);
 
-	auto swapchain = device.create_guarded<vk::swapchain>(
+	auto swapchain = device.create<vk::swapchain>(
 		surface,
 		surface_capabilities.min_image_count,
 		surface_capabilities.current_extent,
@@ -44,18 +43,18 @@ int main() {
 		composite_alpha::opaque
 	);
 
-	uint32 images_count = (uint32)swapchain.get_image_count();
+	uint32 images_count = (uint32)device.get_swapchain_image_count(swapchain);
 	handle<image> images_storage[images_count];
 	span<handle<image>> images{ images_storage, images_count };
 
-	swapchain.get_images(images);
+	device.get_swapchain_images(swapchain, images);
 
-	auto command_pool = device.create_guarded<vk::command_pool>(queue_family_index);
+	auto command_pool = device.create<vk::command_pool>(queue_family_index);
 
 	handle<command_buffer> command_buffers_storage[images_count];
 	span<handle<command_buffer>> command_buffers{ command_buffers_storage, images_count };
 
-	command_pool.allocate_command_buffers(command_buffer_level::primary, command_buffers);
+	vk::allocate_command_buffers(device, command_pool, command_buffer_level::primary, command_buffers);
 
 	image_subresource_range image_subresource_range { image_aspects{ image_aspect::color } };
 
@@ -67,8 +66,8 @@ int main() {
 			.dst_access = dst_access{ access::transfer_write },
 			.old_layout = old_layout{ image_layout::undefined },
 			.new_layout = new_layout{ image_layout::transfer_dst_optimal },
-			.src_queue_family_index{ VK_QUEUE_FAMILY_IGNORED },
-			.dst_queue_family_index{ VK_QUEUE_FAMILY_IGNORED },
+			.src_queue_family_index{ vk::queue_family_ignored },
+			.dst_queue_family_index{ vk::queue_family_ignored },
 			.image = images[i],
 			.subresource_range = image_subresource_range
 		};
@@ -78,8 +77,8 @@ int main() {
 			.dst_access = dst_access{ access::memory_read },
 			.old_layout = old_layout{ image_layout::transfer_dst_optimal },
 			.new_layout = new_layout{ image_layout::present_src },
-			.src_queue_family_index{ VK_QUEUE_FAMILY_IGNORED },
-			.dst_queue_family_index{ VK_QUEUE_FAMILY_IGNORED },
+			.src_queue_family_index{ vk::queue_family_ignored },
+			.dst_queue_family_index{ vk::queue_family_ignored },
 			.image = images[i],
 			.subresource_range = image_subresource_range
 		};
@@ -106,15 +105,15 @@ int main() {
 		command_buffer.end();
 	}
 
-	auto swapchain_image_semaphore = device.create_guarded<vk::semaphore>();
-	auto rendering_finished_semaphore = device.create_guarded<vk::semaphore>();
+	auto swapchain_image_semaphore = device.create<vk::semaphore>();
+	auto rendering_finished_semaphore = device.create<vk::semaphore>();
 
 	auto presentation_queue = device.get_queue(queue_family_index, vk::queue_index{ 0 });
 
 	while (!platform::should_close()) {
 		platform::begin();
 
-		auto result = swapchain.try_acquire_next_image(swapchain_image_semaphore);
+		auto result = device.try_acquire_next_image(swapchain, swapchain_image_semaphore);
 		if(result.is_unexpected()) {
 			if(result.get_unexpected().suboptimal()) break;
 			platform::error("can't acquire swapchain image").new_line();
@@ -123,18 +122,16 @@ int main() {
 
 		vk::image_index image_index = result;
 
-		pipeline_stages wait_dst_stage_mask{ pipeline_stage::transfer };
-
 		presentation_queue.submit(
-			wait_semaphore{ swapchain_image_semaphore.handle() },
+			wait_semaphore{ swapchain_image_semaphore },
 			pipeline_stages{ pipeline_stage::transfer },
 			command_buffers[(uint32)image_index],
-			signal_semaphore{ rendering_finished_semaphore.handle() }
+			signal_semaphore{ rendering_finished_semaphore }
 		);
 
 		presentation_queue.present(
-			wait_semaphore{ rendering_finished_semaphore.handle() },
-			swapchain.handle(),
+			wait_semaphore{ rendering_finished_semaphore },
+			swapchain,
 			image_index
 		);
 
@@ -143,5 +140,5 @@ int main() {
 
 	device.wait_idle();
 
-	command_pool.free_command_buffers(command_buffers);
+	device.free_command_buffers(command_pool, command_buffers);
 }

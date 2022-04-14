@@ -1,12 +1,11 @@
-#include "vk/headers.hpp"
-
-#include "platform/platform.hpp"
+#include "../platform.hpp"
 
 #include <GLFW/glfw3.h>
 #include <stdio.h>
 #include <string.h>
-//#include <stdlib.h>
 #include <png.h>
+
+extern "C" void abort();
 
 inline const platform::logger& platform::logger::string(const char* str, nuint length) const {
 	fwrite(str, 1, length, (FILE*) raw);
@@ -126,6 +125,13 @@ inline void platform::read_image_data(const char* path, span<char> buffer) {
 
 static inline GLFWwindow* window;
 
+extern "C" GLFWAPI int32 glfwCreateWindowSurface(
+	handle<vk::instance> instance,
+	GLFWwindow* window,
+	const void* allocator,
+	handle<vk::surface>* surface
+);
+
 inline elements::of<handle<vk::instance>, handle<vk::surface>>
 platform::create_instance_and_surface(vk::api_version api_version) {
 	if (!glfwInit()) {
@@ -150,7 +156,7 @@ platform::create_instance_and_surface(vk::api_version api_version) {
 		abort();
 	}
 
-	VkSurfaceKHR surface;
+	handle<vk::surface> surface;
 
 	uint32 count;
 	glfwGetRequiredInstanceExtensions(&count);
@@ -163,10 +169,10 @@ platform::create_instance_and_surface(vk::api_version api_version) {
 	handle<vk::instance> instance = create_instance(api_version, required_extensions);
 
 	auto result = glfwCreateWindowSurface(
-		(VkInstance) vk::get_handle_value(instance),
+		instance,
 		window,
 		nullptr,
-		(VkSurfaceKHR*) &surface
+		&surface
 	);
 
 	if(result < 0) {

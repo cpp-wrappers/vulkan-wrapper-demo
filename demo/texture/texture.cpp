@@ -28,7 +28,7 @@ int main() {
 		return 1;
 	}
 
-	auto device = physical_device.create_guarded_device(
+	auto device = physical_device.create_device(
 		queue_family_index,
 		queue_priority{ 1.0F },
 		extension_name{ "VK_KHR_swapchain" }
@@ -40,7 +40,7 @@ int main() {
 	span image_data{ image_data_storage, image_info.size };
 	platform::read_image_data("leaf.png", image_data);
 
-	auto image = device.create_guarded<vk::image>(
+	auto image = device.create<vk::image>(
 		image_create_flags{},
 		image_type::two_d,
 		format::r8_g8_b8_a8_unorm,
@@ -58,39 +58,39 @@ int main() {
 		initial_layout{ image_layout::undefined }
 	);
 
-	auto image_memory = device.allocate_guarded<device_memory>(
+	auto image_memory = device.allocate<device_memory>(
 		memory_size{ image_info.size },
 		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::device_local },
-			image.get_memory_requirements().memory_type_indices
+			device.get_memory_requirements(image).memory_type_indices
 		)
 	);
 
-	image.bind_memory(image_memory);
+	device.bind_memory(image, image_memory);
 
-	auto staging_buffer = device.create_guarded<buffer>(
+	auto staging_buffer = device.create<buffer>(
 		buffer_size{ image_info.size },
 		buffer_usages{ buffer_usage::transfer_src },
 		sharing_mode::exclusive
 	);
 
-	auto staging_buffer_memory = device.allocate_guarded<device_memory>(
+	auto staging_buffer_memory = device.allocate<device_memory>(
 		memory_size{ image_info.size },
 		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::host_visible },
-			staging_buffer.get_memory_requirements().memory_type_indices
+			device.get_memory_requirements(staging_buffer).memory_type_indices
 		)
 	);
 
-	staging_buffer.bind_memory(staging_buffer_memory);
+	device.bind_memory(staging_buffer, staging_buffer_memory);
 
 	uint8* image_data_ptr;
-	staging_buffer_memory.map(memory_size{ image_info.size }, (void**)&image_data_ptr);
+	device.map_memory(staging_buffer_memory, memory_size{ image_info.size }, (void**)&image_data_ptr);
 	for(unsigned i = 0; i < image_info.size; ++i) image_data_ptr[i] = image_data[i];
-	staging_buffer_memory.flush_mapped(memory_size{ image_info.size });
-	staging_buffer_memory.unmap();
+	device.flush_mapped_memory_range(staging_buffer_memory, memory_size{ image_info.size });
+	device.unmap_memory(staging_buffer_memory);
 
-	auto image_view = device.create_guarded<vk::image_view>(
+	auto image_view = device.create<vk::image_view>(
 		image,
 		format::r8_g8_b8_a8_unorm,
 		image_view_type::two_d,
@@ -110,7 +110,7 @@ int main() {
 		{ {  0.5, -0.5, 0.0, 1.0 }, { 1.0, 0.0 } }
 	};
 
-	auto buffer = device.create_guarded<vk::buffer>(
+	auto buffer = device.create<vk::buffer>(
 		buffer_size{ sizeof(data) },
 		buffer_usages{ buffer_usage::vertex_buffer },
 		sharing_mode::exclusive
@@ -136,23 +136,23 @@ int main() {
 		}
 	};
 
-	guarded_handle<device_memory> device_memory = device.allocate_guarded<vk::device_memory>(
+	auto device_memory = device.allocate<vk::device_memory>(
 		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::host_visible },
-			buffer.get_memory_requirements().memory_type_indices
+			device.get_memory_requirements(buffer).memory_type_indices
 		),
 		memory_size{ sizeof(data) }
 	);
 
-	buffer.bind_memory(device_memory);
+	device.bind_memory(buffer, device_memory);
 
 	uint8* ptr;
-	device_memory.map(memory_size{ sizeof(data) }, (void**) &ptr);
+	device.map_memory(device_memory, memory_size{ sizeof(data) }, (void**) &ptr);
 
 	for(nuint i = 0; i < sizeof(data); ++i) *ptr++ = ((uint8*)&data)[i];
 
-	device_memory.flush_mapped(memory_size{ sizeof(data) });
-	device_memory.unmap();
+	device.flush_mapped_memory_range(device_memory, memory_size{ sizeof(data) });
+	device.unmap_memory(device_memory);
 
 	surface_format surface_format = physical_device.get_first_surface_format(surface);
 
@@ -160,12 +160,12 @@ int main() {
 		color_attachment_reference{ 0, image_layout::color_attachment_optimal }
 	};
 
-	auto render_pass = device.create_guarded<vk::render_pass>(
+	auto render_pass = device.create<vk::render_pass>(
 		array{ subpass_description {
 			color_attachments
 		} },
 		array{ subpass_dependency {
-			src_subpass{ VK_SUBPASS_EXTERNAL },
+			src_subpass{ subpass_external },
 			dst_subpass{ 0 },
 			src_stages{ pipeline_stage::color_attachment_output },
 			dst_stages{ pipeline_stage::color_attachment_output }
@@ -181,7 +181,7 @@ int main() {
 	auto vertex_shader = platform::read_shader_module(device, "texture.vert.spv");
 	auto fragment_shader = platform::read_shader_module(device, "texture.frag.spv");
 
-	auto sampler = device.create_guarded<vk::sampler>(
+	auto sampler = device.create<vk::sampler>(
 		mag_filter{ filter::nearest },
 		min_filter{ filter::nearest },
 		mipmap_mode::nearest,
@@ -190,14 +190,14 @@ int main() {
 		address_mode_w{ address_mode::clamp_to_edge }
 	);
 
-	auto descriptor_pool = device.create_guarded<vk::descriptor_pool>(
+	auto descriptor_pool = device.create<vk::descriptor_pool>(
 		max_sets{ 1 },
 		array {
 			descriptor_pool_size { descriptor_type::combined_image_sampler, descriptor_count{ 1 } }
 		}
 	);
 
-	auto set_layout = device.create_guarded<descriptor_set_layout>(
+	auto set_layout = device.create<descriptor_set_layout>(
 		descriptor_set_layout_create_flags{},
 		array {
 			descriptor_set_layout_binding {
@@ -208,7 +208,7 @@ int main() {
 		}
 	);
 
-	auto set = descriptor_pool.allocate_descriptor_set(set_layout);
+	auto set = device.allocate<descriptor_set>(descriptor_pool, set_layout);
 
 	device.update_descriptor_set(
 		write_descriptor_set {
@@ -224,8 +224,8 @@ int main() {
 		}
 	);
 
-	auto pipeline_layout = device.create_guarded<vk::pipeline_layout>(
-		array{ get_handle(set_layout) }
+	auto pipeline_layout = device.create<vk::pipeline_layout>(
+		array{ set_layout }
 	);
 
 	array dynamic_states { dynamic_state::viewport, dynamic_state::scissor };
@@ -241,7 +241,7 @@ int main() {
 		color_components{ color_component::r, color_component::g, color_component::b, color_component::a }
 	};
 
-	auto pipeline = device.create_guarded<vk::pipeline>(
+	auto pipeline = device.create<vk::pipeline>(
 		subpass{ 0 },
 		pipeline_layout, render_pass,
 		primitive_topology::triangle_strip,
@@ -277,7 +277,7 @@ int main() {
 		pipeline_dynamic_state_create_info { dynamic_states }
 	);
 
-	auto command_pool = device.create_guarded<vk::command_pool>(
+	auto command_pool = device.create<vk::command_pool>(
 		queue_family_index,
 		command_pool_create_flags {
 			command_pool_create_flag::reset_command_buffer,
@@ -286,17 +286,17 @@ int main() {
 	);
 
 	struct rendering_resource {
-		guarded_handle<command_buffer> command_buffer;
-		guarded_handle<semaphore> image_acquire;
-		guarded_handle<semaphore> finish;
-		guarded_handle<fence> fence;
-		guarded_handle<framebuffer> framebuffer;
+		handle<command_buffer> command_buffer;
+		handle<semaphore> image_acquire;
+		handle<semaphore> finish;
+		handle<fence> fence;
+		handle<framebuffer> framebuffer;
 	};
 
 	array<rendering_resource, 2> rendering_resources{};
 
 	for(auto& rr : rendering_resources) {
-		rr.command_buffer = command_pool.allocate_guarded<command_buffer>(command_buffer_level::primary);
+		rr.command_buffer = device.allocate<command_buffer>(command_pool, command_buffer_level::primary);
 	}
 
 	rendering_resources[0].command_buffer
@@ -309,7 +309,7 @@ int main() {
 					.dst_access{ access::transfer_write },
 					.old_layout{ image_layout::undefined },
 					.new_layout{ image_layout::transfer_dst_optimal },
-					.image = get_handle(image),
+					.image = image,
 					.subresource_range {
 						image_aspects{ image_aspect::color }
 					}
@@ -339,7 +339,7 @@ int main() {
 					.dst_access{ access::shader_read },
 					.old_layout{ image_layout::transfer_dst_optimal },
 					.new_layout{ image_layout::shader_read_only_optimal },
-					.image = get_handle(image),
+					.image = image,
 					.subresource_range {
 						image_aspects{ image_aspect::color }
 					}
@@ -349,7 +349,7 @@ int main() {
 		.end();
 
 
-	guarded_handle<swapchain> swapchain{};
+	handle<swapchain> swapchain{};
 	auto queue = device.get_queue(queue_family_index, queue_index{ 0 });
 
 	queue.submit(rendering_resources[0].command_buffer);
@@ -362,7 +362,7 @@ int main() {
 		{
 			auto old_swapchain = move(swapchain);
 
-			swapchain = device.create_guarded<vk::swapchain>(
+			swapchain = device.create<vk::swapchain>(
 				surface,
 				surface_capabilities.min_image_count,
 				surface_capabilities.current_extent,
@@ -377,17 +377,17 @@ int main() {
 			);
 		}
 
-		uint32 images_count = (uint32)swapchain.get_image_count();
+		uint32 images_count = (uint32) device.get_swapchain_image_count(swapchain);
 
 		handle<vk::image> images_storage[images_count];
 		span images{ images_storage, images_count };
-		swapchain.get_images(images);
+		device.get_swapchain_images(swapchain, images);
 
-		guarded_handle<vk::image_view> image_views_raw[images_count];
+		handle<vk::image_view> image_views_raw[images_count];
 		span image_views{ image_views_raw, images_count };
 
 		for(nuint i = 0; i < images_count; ++i) {
-			image_views[i] = device.create_guarded<vk::image_view>(
+			image_views[i] = device.create<vk::image_view>(
 				images[i],
 				surface_format.format,
 				image_view_type::two_d,
@@ -397,9 +397,9 @@ int main() {
 		}
 
 		for(auto& rr : rendering_resources) {
-			rr.fence = device.create_guarded<fence>(fence_create_flag::signaled);
-			rr.image_acquire = device.create_guarded<semaphore>();
-			rr.finish = device.create_guarded<semaphore>();
+			rr.fence = device.create<fence>(fence_create_flag::signaled);
+			rr.image_acquire = device.create<semaphore>();
+			rr.finish = device.create<semaphore>();
 		}
 
 		nuint rendering_resource_index = 0;
@@ -411,10 +411,10 @@ int main() {
 			
 			platform::begin();
 
-			rr.fence.wait();
-			rr.fence.reset();
+			device.wait_for_fence(rr.fence);
+			device.reset_fence(rr.fence);
 
-			auto result = swapchain.try_acquire_next_image(rr.image_acquire);
+			auto result = device.try_acquire_next_image(swapchain, rr.image_acquire);
 			if(result.is_unexpected()) {
 				if(result.get_unexpected().suboptimal() || result.get_unexpected().out_of_date()) break;
 				platform::error("acquire next image").new_line();
@@ -423,9 +423,9 @@ int main() {
 
 			image_index image_index = result;
 
-			rr.framebuffer = device.create_guarded<framebuffer>(
+			rr.framebuffer = device.create<framebuffer>(
 				render_pass,
-				array{ image_views[(uint32)image_index].handle() },
+				array{ image_views[(uint32)image_index] },
 				extent<3>{ surface_capabilities.current_extent.width(), surface_capabilities.current_extent.height(), 1 }
 			);
 
@@ -449,7 +449,8 @@ int main() {
 
 			queue.submit(
 				command_buffer,
-				wait_semaphore{ rr.image_acquire }, signal_semaphore{ rr.finish },
+				wait_semaphore{ rr.image_acquire },
+				signal_semaphore{ rr.finish },
 				pipeline_stages{ pipeline_stage::color_attachment_output },
 				rr.fence
 			);

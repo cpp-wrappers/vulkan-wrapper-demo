@@ -8,12 +8,11 @@
 #include <math/matrix.hpp>
 
 #include "vk/instance/handle.hpp"
-#include "vk/instance/guarded_handle.hpp"
+#include "vk/instance/create.hpp"
 #include "vk/instance/layer_properties.hpp"
 #include "vk/instance/extension_properties.hpp"
-#include "vk/surface/guarded_handle.hpp"
 #include "vk/debug/report/callback/create.hpp"
-#include "vk/default_unexpected_handler.hpp"
+#include "vk/unexpected_handler.hpp"
 
 namespace platform {
 
@@ -123,7 +122,7 @@ namespace platform {
 
 		if(result.is_unexpected()) {
 			platform::error("couldn't create instance").new_line();
-			vk::default_unexpected_handler(result.get_unexpected());
+			vk::unexpected_handler(result.get_unexpected());
 		}
 
 		auto instance = result.get_expected();
@@ -152,11 +151,11 @@ namespace platform {
 		return create_instance_and_surface(vk::api_version{ vk::major{ 1 }, vk::minor{ 0 } });
 	}
 
-	inline guarded_handle<vk::shader_module> read_shader_module(const guarded_handle<vk::device>& device, const char* path) {
+	inline handle<vk::shader_module> read_shader_module(handle<vk::device> device, const char* path) {
 		auto size = platform::file_size(path);
 		char src[size];
 		platform::read_file(path, span{ src, size });
-		return device.create_guarded<vk::shader_module>(vk::code_size{ (uint32) size }, vk::code{ (uint32*) src });
+		return device.create<vk::shader_module>(vk::code_size{ (uint32) size }, vk::code{ (uint32*) src });
 	}
 
 	inline bool should_close();
@@ -164,3 +163,17 @@ namespace platform {
 	inline void end();
 
 } // platform
+
+#include <vk/unexpected_handler.hpp>
+
+extern "C" [[ noreturn ]] void abort();
+
+[[ noreturn ]]
+inline void vk::unexpected_handler() {
+	abort();
+}
+
+[[ noreturn ]]
+inline void vk::unexpected_handler(vk::result result) {
+	vk::unexpected_handler();
+}
