@@ -103,7 +103,7 @@ int main() {
 			});
 
 			array_block("device extensions properties", [&] {
-				device.for_each_extension_properties([](auto props) {
+				device.for_each_device_extension_properties([](auto props) {
 					object_block([&]{
 						println("name: ", props.name);
 						println("spec version: ", props.spec_version);

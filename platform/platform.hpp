@@ -3,7 +3,7 @@
 #include <core/number.hpp>
 #include <core/c_string.hpp>
 #include <core/span.hpp>
-#include <core/box.hpp>
+#include <core/range/view_on_stack.hpp>
 
 #include <math/matrix.hpp>
 
@@ -96,28 +96,33 @@ namespace platform {
 		vk::layer_name validation_layer_name{ "VK_LAYER_KHRONOS_validation" };
 		vk::extension_name debug_report_extension_name{ "VK_EXT_debug_report" };
 
-		auto result = view_box_of_capacity<vk::layer_name>(1, [&](auto layers) {
+		auto result = range::view_on_stack<vk::layer_name>(1)([&](span<vk::layer_name> layers) {
 			bool validation_layer_is_supported = vk::is_instance_layer_supported(validation_layer_name);
 
+			nuint layers_count = 0;
 			if(validation_layer_is_supported) {
-				layers.push_back(validation_layer_name);
+				layers[layers_count++] = validation_layer_name;
 			}
 
-			return view_box_of_capacity<vk::extension_name>(extensions.size() + 1, [&](auto extensions0) {
-				extensions0.push_back(extensions);
+			return range::view_on_stack<vk::extension_name>(extensions.size() + 1)(
+				[&](span<vk::extension_name> extensions0) {
+					nuint extensions_count = 0;
+					for(auto e : extensions) extensions0[extensions_count++] = e;
 
-				if(vk::is_instance_extension_supported(debug_report_extension_name)) {
-					extensions0.push_back(debug_report_extension_name);
+					if(vk::is_instance_extension_supported(debug_report_extension_name)) {
+						extensions0[extensions_count++] = debug_report_extension_name;
+					}
+
+					return vk::create<vk::instance>(
+						vk::application_info {
+							api_version,
+							vk::application_name{"Test"}
+						},
+						layers.cut(layers_count),
+						extensions0.cut(extensions_count)
+					);
 				}
-
-				return vk::create<vk::instance>(
-					vk::application_info {
-						api_version
-					},
-					layers,
-					extensions0
-				);
-			});
+			);
 		});
 
 		if(result.is_unexpected()) {
@@ -174,6 +179,6 @@ inline void vk::unexpected_handler() {
 }
 
 [[ noreturn ]]
-inline void vk::unexpected_handler(vk::result result) {
+inline void vk::unexpected_handler(vk::result) {
 	vk::unexpected_handler();
 }

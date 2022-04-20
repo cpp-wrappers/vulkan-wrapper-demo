@@ -21,7 +21,7 @@ int main() {
 	handle<physical_device> physical_device = instance.get_first_physical_device();
 	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
 
-	platform::info("graphics family index: ", (uint32)queue_family_index).new_line();
+	platform::info("graphics family index: ", (uint32) queue_family_index).new_line();
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface isn't supported").new_line();
@@ -210,7 +210,7 @@ int main() {
 			queue.submit(
 				wait_semaphore{ swapchain_image_semaphore },
 				pipeline_stages{ pipeline_stage::color_attachment_output },
-				command_buffers[(uint32)image_index],
+				command_buffers[image_index],
 				signal_semaphore{ rendering_finished_semaphore }
 			);
 
