@@ -1,6 +1,12 @@
 #include "../platform.hpp"
 
-#include <GLFW/glfw3.h>
+#include <glfw/init.hpp>
+#include <glfw/vulkan.hpp>
+#include <glfw/poll_events.hpp>
+#include <glfw/window/create_surface.hpp>
+#include <glfw/window/create.hpp>
+#include <glfw/window/hint.hpp>
+
 #include <stdio.h>
 #include <string.h>
 #include <png.h>
@@ -123,64 +129,51 @@ inline void platform::read_image_data(const char* path, span<char> buffer) {
 	png_destroy_read_struct(&png_ptr, &info_ptr, nullptr);
 }
 
-static inline GLFWwindow* window;
-
-extern "C" GLFWAPI int32 glfwCreateWindowSurface(
-	handle<vk::instance> instance,
-	GLFWwindow* window,
-	const void* allocator,
-	handle<vk::surface>* surface
-);
+static inline handle<glfw::window> window;
 
 inline elements::of<handle<vk::instance>, handle<vk::surface>>
 platform::create_instance_and_surface(vk::api_version api_version) {
-	if (!glfwInit()) {
+	if (!glfw::try_init()) {
 		platform::error("glfw init failed").new_line();
 		abort();
 	}
 
-	if(!glfwVulkanSupported()) {
+	if(!glfw::is_vulkan_supported()) {
 		platform::error("vulkan is not supported").new_line();
 		abort();
 	}
 
-	glfwSetErrorCallback([](int error_code, const char* description) {
-		platform::error("[glfw] error code: ", uint32(error_code), ", description: ", description).new_line();
-	});
+	//glfwSetErrorCallback([](int error_code, const char* description) {
+	//	platform::error("[glfw] error code: ", uint32(error_code), ", description: ", description).new_line();
+	//});
 
-	glfwWindowHint(GLFW_CLIENT_API, GLFW_NO_API);
-	window = glfwCreateWindow(640, 640, "Vulkan", nullptr, nullptr);
+	glfw::window_hint(glfw::window_hint::client_api, glfw::window_hint::no_api);
+	auto window0 = glfw::try_create_window(
+		glfw::width{ 640 }, glfw::height{ 640 }, glfw::title{ "Vulkan" }
+	);
 
-	if (!window) {
+	if (window0.is_unexpected()) {
 		platform::error("window creation failed").new_line();
 		abort();
 	}
+	
+	window = window0.get_expected();
 
-	handle<vk::surface> surface;
-
-	uint32 count;
-	glfwGetRequiredInstanceExtensions(&count);
-	uint32 ignore;
-	span required_extensions {
-		(vk::extension_name*) glfwGetRequiredInstanceExtensions(&ignore),
-		count
-	};
+	auto required_extensions = glfw::get_required_instance_extensions();
 
 	handle<vk::instance> instance = create_instance(api_version, required_extensions);
 
-	auto result = glfwCreateWindowSurface(
+	auto surface0 = glfw::try_create_window_surface(
 		instance,
-		window,
-		nullptr,
-		&surface
+		window
 	);
 
-	if(result < 0) {
+	if(surface0.is_unexpected()) {
 		platform::error("surface creation failed").new_line();
 		abort();
 	}
 
-	return { instance, handle<vk::surface>{ surface } };
+	return { instance, surface0.get_expected() };
 }
 
 inline bool platform::should_close() {
@@ -208,5 +201,5 @@ void platform::begin() {
 }
 
 inline void platform::end() {
-	glfwPollEvents();
+	glfw::poll_events();
 }

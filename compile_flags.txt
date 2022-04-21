@@ -11,6 +11,7 @@
 -I../core/include
 -I../math/include
 -I../vulkan-wrapper/include
+-I../glfw-wrapper/include
 -fmodules
 -Xclang -fimplicit-module-maps
 -Xclang -fprebuilt-module-path=./build

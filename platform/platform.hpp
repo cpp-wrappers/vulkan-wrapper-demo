@@ -9,8 +9,8 @@
 
 #include "vk/instance/handle.hpp"
 #include "vk/instance/create.hpp"
-#include "vk/instance/layer_properties.hpp"
-#include "vk/instance/extension_properties.hpp"
+#include "vk/instance/layer/is_supported.hpp"
+#include "vk/instance/extension/is_supported.hpp"
 #include "vk/debug/report/callback/create.hpp"
 #include "vk/unexpected_handler.hpp"
 
@@ -107,7 +107,7 @@ namespace platform {
 			return range::view_on_stack<vk::extension_name>(extensions.size() + 1)(
 				[&](span<vk::extension_name> extensions0) {
 					nuint extensions_count = 0;
-					for(auto e : extensions) extensions0[extensions_count++] = e;
+					for(auto e : extensions) extensions0[extensions_count++] = vk::extension_name{ e };
 
 					if(vk::is_instance_extension_supported(debug_report_extension_name)) {
 						extensions0[extensions_count++] = debug_report_extension_name;
@@ -180,5 +180,17 @@ inline void vk::unexpected_handler() {
 
 [[ noreturn ]]
 inline void vk::unexpected_handler(vk::result) {
-	vk::unexpected_handler();
+	abort();
+}
+
+#include <glfw/unexpected_handler.hpp>
+
+[[ noreturn ]]
+inline void glfw::unexpected_handler() {
+	abort();
+}
+
+[[ noreturn ]]
+inline void glfw::unexpected_handler(glfw::error result) {
+	abort();
 }

@@ -35,6 +35,7 @@ args+=(-I${root_dir}/platform)
 args+=(-I${root_dir}/../core/include)
 args+=(-I${root_dir}/../math/include)
 args+=(-I${root_dir}/../vulkan-wrapper/include)
+args+=(-I${root_dir}/../glfw-wrapper/include)
 args+=(-Xclang -fimplicit-module-maps)
 
 if [ -v verbose ]; then
