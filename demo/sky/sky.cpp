@@ -31,7 +31,7 @@ int main() {
 	handle<surface> surface = instance_and_surface.get<handle<vk::surface>>();
 
 	handle<physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(vk::queue_flag::graphics);
+	auto queue_family_index = physical_device.find_first_queue_family_with_capabilities(vk::queue_flag::graphics);
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface isn't supported by queue family").new_line();
@@ -106,8 +106,7 @@ int main() {
 		max_sets{ 1 },
 		array {
 			descriptor_pool_size {
-				descriptor_type::uniform_buffer,
-				descriptor_count{ 1 }
+				descriptor_type::uniform_buffer
 			}
 		}
 	);

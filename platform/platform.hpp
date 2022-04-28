@@ -3,7 +3,7 @@
 #include <core/number.hpp>
 #include <core/c_string.hpp>
 #include <core/span.hpp>
-#include <core/range/view_on_stack.hpp>
+#include <core/view_on_stack.hpp>
 
 #include <math/matrix.hpp>
 
@@ -102,7 +102,7 @@ namespace platform {
 		vk::layer_name validation_layer{ "VK_LAYER_KHRONOS_validation" };
 		vk::extension_name debug_report_extension{ "VK_EXT_debug_report" };
 
-		auto result = range::view_on_stack<vk::layer_name>(1)([&](auto layers) {
+		auto result = view_on_stack<vk::layer_name>(1)([&](auto layers) {
 			bool validation_layer_is_supported {
 				vk::is_instance_layer_supported(validation_layer)
 			};
@@ -112,7 +112,7 @@ namespace platform {
 				layers[layers_count++] = validation_layer;
 			}
 
-			return range::view_on_stack<vk::extension_name> {
+			return view_on_stack<vk::extension_name> {
 				extensions.size() + 1
 			}([&](span<vk::extension_name> extensions0) {
 				nuint extensions_count = 0;

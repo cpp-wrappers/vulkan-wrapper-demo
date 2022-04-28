@@ -2,12 +2,14 @@
 
 #include "as.hpp"
 
+#include <vk/buffer/get_device_address.hpp>
+
 inline as_t
 create_blas(
-	vk::guarded_handle<vk::device>& device,
-	vk::handle<vk::physical_device>& physical_device,
-	vk::guarded_handle<vk::command_buffer>& command_buffer,
-	vk::handle<vk::queue> queue
+	handle<vk::device> device,
+	handle<vk::physical_device> physical_device,
+	handle<vk::command_buffer> command_buffer,
+	handle<vk::queue> queue
 ) {
 	using namespace vk;
 
@@ -27,7 +29,7 @@ create_blas(
 		}};
 	} blas_data;
 
-	auto vertex_buffer = device.create_guarded<vk::buffer>(
+	auto vertex_buffer = device.create<vk::buffer>(
 		buffer_usages {
 			buffer_usage::shader_device_address,
 			buffer_usage::acceleration_structure_build_input_read_only
@@ -35,7 +37,7 @@ create_blas(
 		buffer_size{ sizeof blas_data_t::vertices }
 	);
 
-	auto index_buffer = device.create_guarded<vk::buffer>(
+	auto index_buffer = device.create<vk::buffer>(
 		buffer_usages {
 			buffer_usage::shader_device_address,
 			buffer_usage::acceleration_structure_build_input_read_only
@@ -43,7 +45,7 @@ create_blas(
 		buffer_size{ sizeof blas_data_t::indices }
 	);
 
-	auto transform_buffer = device.create_guarded<vk::buffer>(
+	auto transform_buffer = device.create<vk::buffer>(
 		buffer_usages {
 			buffer_usage::shader_device_address,
 			buffer_usage::acceleration_structure_build_input_read_only
@@ -51,17 +53,17 @@ create_blas(
 		buffer_size{ sizeof blas_data_t::matrix }
 	);
 
-	auto data_memory = device.allocate_guarded<vk::device_memory>(
+	auto data_memory = device.allocate<vk::device_memory>(
 		physical_device.find_first_memory_type_index(
 			memory_properties {
 				memory_property::host_visible,
 				memory_property::host_coherent
 			},
-			vertex_buffer.get_memory_requirements().memory_type_indices
+			device.get_memory_requirements(vertex_buffer).memory_type_indices
 			&
-			index_buffer.get_memory_requirements().memory_type_indices
+			device.get_memory_requirements(index_buffer).memory_type_indices
 			&
-			transform_buffer.get_memory_requirements().memory_type_indices
+			device.get_memory_requirements(transform_buffer).memory_type_indices
 		),
 		memory_size{ sizeof(blas_data_t) },
 		memory_allocate_flags_info {
@@ -71,22 +73,39 @@ create_blas(
 		}
 	);
 
-	vertex_buffer.bind_memory(data_memory,  memory_offset{ offsetof(blas_data_t, vertices) });
-	index_buffer.bind_memory(data_memory, memory_offset{ offsetof(blas_data_t, indices) });
-	transform_buffer.bind_memory(data_memory, memory_offset{ offsetof(blas_data_t, matrix) });
+	device.bind_memory (
+		vertex_buffer,
+		data_memory,
+		memory_offset{ offsetof(blas_data_t, vertices) }
+	);
+	device.bind_memory(
+		index_buffer,
+		data_memory,
+		memory_offset{ offsetof(blas_data_t, indices) }
+	);
+	device.bind_memory(
+		transform_buffer,
+		data_memory,
+		memory_offset{ offsetof(blas_data_t, matrix) }
+	);
 
 	void* mapped_data_memory;
-	data_memory.map(&mapped_data_memory, memory_size{ sizeof(blas_data_t) });
+	device.map_memory(
+		data_memory,
+		&mapped_data_memory,
+		memory_size{ sizeof(blas_data_t) }
+	);
+
 	memccpy(mapped_data_memory, &blas_data, 1, sizeof(blas_data));
 
 	as::geometry_triangles_data triangles_data {
 		.format = format::r32_g32_b32_sfloat,
-		.vertex_data{ vertex_buffer.get_device_address() },
+		.vertex_data{ get_device_address(device, vertex_buffer) },
 		.vertex_stride{ sizeof blas_data_t::vertices },
 		.max_vertex = 3,
 		.index_type = index_type::uint32,
-		.index_data{ index_buffer.get_device_address() },
-		.transform_data{ transform_buffer.get_device_address() }
+		.index_data{ get_device_address(device, index_buffer) },
+		.transform_data{ get_device_address(device, transform_buffer) }
 	};
 
 	as::geometry_data geometry_data {
@@ -114,17 +133,19 @@ create_blas(
 		&primitive_counts
 	);
 
-	blas.scratch_buffer = device.create_guarded<buffer>(
-		buffer_size {
-			build_sizes.acceleration_structure_size
-		},
-		buffer_usages{ buffer_usage::storage_buffer, buffer_usage::shader_device_address }
+	blas.scratch_buffer = device.create<buffer>(
+		memory_size { build_sizes.acceleration_structure_size },
+		buffer_usages {
+			buffer_usage::storage_buffer,
+			buffer_usage::shader_device_address
+		}
 	);
 
-	blas.scratch_device_memory = device.allocate_guarded<device_memory>(
+	blas.scratch_device_memory = device.allocate<device_memory>(
 		physical_device.find_first_memory_type_index(
 			memory_properties{ memory_property::device_local },
-			blas.scratch_buffer.get_memory_requirements().memory_type_indices
+			device.get_memory_requirements(blas.scratch_buffer)
+				.memory_type_indices
 		),
 		memory_size{ build_sizes.acceleration_structure_size },
 		memory_allocate_flags_info {
@@ -134,19 +155,17 @@ create_blas(
 		}
 	);
 
-	blas.scratch_buffer.bind_memory(blas.scratch_device_memory);
+	device.bind_memory(blas.scratch_buffer, blas.scratch_device_memory);
 
-	blas.buffer = device.create_guarded<buffer>(
-		buffer_size {
-			build_sizes.acceleration_structure_size
-		},
+	blas.buffer = device.create<buffer>(
+		memory_size { build_sizes.acceleration_structure_size },
 		buffer_usages{ buffer_usage::acceleration_structure_storage }
 	);
 
-	blas.device_memory = device.allocate_guarded<device_memory>(
+	blas.device_memory = device.allocate<device_memory>(
 		physical_device.find_first_memory_type_index(
 			{},
-			blas.buffer.get_memory_requirements().memory_type_indices
+			device.get_memory_requirements(blas.buffer).memory_type_indices
 		),
 		memory_size{ build_sizes.acceleration_structure_size },
 		memory_allocate_flags_info {
@@ -156,18 +175,22 @@ create_blas(
 		}
 	);
 
-	blas.buffer.bind_memory(blas.device_memory);
+	device.bind_memory(blas.buffer, blas.device_memory);
 
-	blas.handle = device.create_guarded<acceleration_structure>(
+	blas.handle = device.create<acceleration_structure>(
 		blas.buffer,
 		memory_size{ build_sizes.acceleration_structure_size },
 		acceleration_structure_type::bottom_level
 	);
 
-	build_geometry_info.dst = vk::get_handle(blas.handle);
-	build_geometry_info.scratch_data.device_address = blas.scratch_buffer.get_device_address();
+	build_geometry_info.dst = blas.handle;
+	build_geometry_info.scratch_data.device_address = {
+		get_device_address(device, blas.scratch_buffer)
+	};
 
-	command_buffer.begin(command_buffer_usages{ command_buffer_usage::one_time_submit });
+	command_buffer.begin(
+		command_buffer_usages{ command_buffer_usage::one_time_submit }
+	);
 
 	const as::build_range_info build_range_info {
 		.primitive_count = 3

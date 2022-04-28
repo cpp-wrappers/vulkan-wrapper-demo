@@ -14,14 +14,19 @@ exit 0
 
 #include "platform_implementation.hpp"
 
+#include <core/copy.hpp>
+#include <core/meta/type/array_extent.hpp>
+
 int main() {
 	using namespace vk;
 
 	auto [instance, surface] = platform::create_instance_and_surface();
-	handle<physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
-
-	platform::info("graphics family index: ", (uint32)queue_family_index).new_line();
+	auto physical_device = instance.get_first_physical_device();
+	auto queue_family_index {
+		physical_device.find_first_queue_family_with_capabilities(
+			queue_flag::graphics
+		)
+	};
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface isn't supported").new_line();
@@ -35,7 +40,11 @@ int main() {
 	);
 
 	platform::image_info image_info = platform::read_image_info("leaf.png");
-	platform::info("image width: ", image_info.width, ", height: ", image_info.height, ", size: ", image_info.size).new_line();
+	platform::info(
+		"image width: ", image_info.width,
+		", height: ", image_info.height,
+		", size: ", image_info.size
+	).new_line();
 	char image_data_storage[image_info.size];
 	span image_data{ image_data_storage, image_info.size };
 	platform::read_image_data("leaf.png", image_data);
@@ -45,17 +54,13 @@ int main() {
 		image_type::two_d,
 		format::r8_g8_b8_a8_unorm,
 		extent<3>{ image_info.width, image_info.height, 1 },
-		mip_levels{ 1 },
-		array_layers{ 1 },
-		sample_count{ 1 },
 		image_tiling::optimal,
 		image_usages {
 			image_usage::transfer_dst,
 			image_usage::sampled
 		},
 		sharing_mode::exclusive,
-		span<vk::queue_family_index>{ nullptr, 0 },
-		initial_layout{ image_layout::undefined }
+		span<vk::queue_family_index>{ nullptr, 0 }
 	);
 
 	auto image_memory = device.allocate<device_memory>(
@@ -85,9 +90,19 @@ int main() {
 	device.bind_memory(staging_buffer, staging_buffer_memory);
 
 	uint8* image_data_ptr;
-	device.map_memory(staging_buffer_memory, memory_size{ image_info.size }, (void**)&image_data_ptr);
+	device.map_memory(
+		staging_buffer_memory,
+		memory_size{ image_info.size },
+		(void**) &image_data_ptr
+	);
+
 	for(unsigned i = 0; i < image_info.size; ++i) image_data_ptr[i] = image_data[i];
-	device.flush_mapped_memory_range(staging_buffer_memory, memory_size{ image_info.size });
+
+	device.flush_mapped_memory_range(
+		staging_buffer_memory,
+		memory_size{ image_info.size }
+	);
+
 	device.unmap_memory(staging_buffer_memory);
 
 	auto image_view = device.create<vk::image_view>(
@@ -146,15 +161,25 @@ int main() {
 
 	device.bind_memory(buffer, device_memory);
 
-	uint8* ptr;
-	device.map_memory(device_memory, memory_size{ sizeof(data) }, (void**) &ptr);
+	data_t* ptr;
 
-	for(nuint i = 0; i < sizeof(data); ++i) *ptr++ = ((uint8*)&data)[i];
+	device.map_memory(
+		device_memory,
+		memory_size{ sizeof(data) },
+		(void**) &ptr
+	);
 
-	device.flush_mapped_memory_range(device_memory, memory_size{ sizeof(data) });
+	copy{ data }.to(span{ ptr, array_extent<decltype(data), 0> });
+
+	device.flush_mapped_memory_range(
+		device_memory,
+		memory_size{ sizeof(data) }
+	);
 	device.unmap_memory(device_memory);
 
-	surface_format surface_format = physical_device.get_first_surface_format(surface);
+	surface_format surface_format {
+		physical_device.get_first_surface_format(surface)
+	};
 
 	array color_attachments {
 		color_attachment_reference{ 0, image_layout::color_attachment_optimal }
@@ -178,8 +203,12 @@ int main() {
 		} }
 	);
 
-	auto vertex_shader = platform::read_shader_module(device, "texture.vert.spv");
-	auto fragment_shader = platform::read_shader_module(device, "texture.frag.spv");
+	auto vertex_shader {
+		platform::read_shader_module(device, "texture.vert.spv")
+	};
+	auto fragment_shader {
+		platform::read_shader_module(device, "texture.frag.spv")
+	};
 
 	auto sampler = device.create<vk::sampler>(
 		mag_filter{ filter::nearest },
@@ -193,7 +222,10 @@ int main() {
 	auto descriptor_pool = device.create<vk::descriptor_pool>(
 		max_sets{ 1 },
 		array {
-			descriptor_pool_size { descriptor_type::combined_image_sampler, descriptor_count{ 1 } }
+			descriptor_pool_size {
+				descriptor_type::combined_image_sampler,
+				descriptor_count{ 1 }
+			}
 		}
 	);
 
@@ -238,7 +270,12 @@ int main() {
 		src_alpha_blend_factor{ blend_factor::one },
 		dst_alpha_blend_factor{ blend_factor::zero },
 		alpha_blend_op{ blend_op::add },
-		color_components{ color_component::r, color_component::g, color_component::b, color_component::a }
+		color_components {
+			color_component::r,
+			color_component::g,
+			color_component::b,
+			color_component::a
+		}
 	};
 
 	auto pipeline = device.create<vk::pipeline>(
@@ -296,7 +333,10 @@ int main() {
 	array<rendering_resource, 2> rendering_resources{};
 
 	for(auto& rr : rendering_resources) {
-		rr.command_buffer = device.allocate<command_buffer>(command_pool, command_buffer_level::primary);
+		rr.command_buffer = device.allocate<command_buffer>(
+			command_pool,
+			command_buffer_level::primary
+		);
 	}
 
 	rendering_resources[0].command_buffer
@@ -357,7 +397,9 @@ int main() {
 	device.wait_idle();
 
 	while(!platform::should_close()) {
-		surface_capabilities surface_capabilities = physical_device.get_surface_capabilities(surface);
+		surface_capabilities surface_capabilities {
+			physical_device.get_surface_capabilities(surface)
+		};
 
 		{
 			auto old_swapchain = move(swapchain);
@@ -367,7 +409,10 @@ int main() {
 				surface_capabilities.min_image_count,
 				surface_capabilities.current_extent,
 				surface_format,
-				image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
+				image_usages {
+					image_usage::color_attachment,
+					image_usage::transfer_dst
+				},
 				sharing_mode::exclusive,
 				present_mode::fifo,
 				clipped{ true },
@@ -377,11 +422,13 @@ int main() {
 			);
 		}
 
-		uint32 images_count = (uint32) device.get_swapchain_image_count(swapchain);
+		uint32 images_count = device.get_swapchain_image_count(swapchain);
 
 		handle<vk::image> images_storage[images_count];
+		images_count = device.get_swapchain_images(
+			swapchain, span{ images_storage, images_count }
+		);
 		span images{ images_storage, images_count };
-		device.get_swapchain_images(swapchain, images);
 
 		handle<vk::image_view> image_views_raw[images_count];
 		span image_views{ image_views_raw, images_count };
@@ -414,9 +461,16 @@ int main() {
 			device.wait_for_fence(rr.fence);
 			device.reset_fence(rr.fence);
 
-			auto result = device.try_acquire_next_image(swapchain, rr.image_acquire);
+			auto result = device.try_acquire_next_image(
+				swapchain,
+				rr.image_acquire
+			);
+
 			if(result.is_unexpected()) {
-				if(result.get_unexpected().suboptimal() || result.get_unexpected().out_of_date()) break;
+				if(
+					result.get_unexpected().suboptimal() ||
+					result.get_unexpected().out_of_date()
+				) break;
 				platform::error("acquire next image").new_line();
 				return 1;
 			}
@@ -426,7 +480,7 @@ int main() {
 			rr.framebuffer = device.create<framebuffer>(
 				render_pass,
 				array{ image_views[(uint32)image_index] },
-				extent<3>{ surface_capabilities.current_extent.width(), surface_capabilities.current_extent.height(), 1 }
+				extent<3> { surface_capabilities.current_extent, 1 }
 			);
 
 			auto& command_buffer = rr.command_buffer;
@@ -436,10 +490,14 @@ int main() {
 				.cmd_begin_render_pass(
 					render_pass, rr.framebuffer,
 					render_area{ surface_capabilities.current_extent },
-					array{ clear_value { clear_color_value{ 0.0, 0.0, 0.0, 0.0 } } }
+					array { clear_value {
+						clear_color_value{ 0.0, 0.0, 0.0, 0.0 }
+					} }
 				)
 				.cmd_bind_pipeline(pipeline, pipeline_bind_point::graphics)
-				.cmd_bind_descriptor_set(pipeline_bind_point::graphics, pipeline_layout, set)
+				.cmd_bind_descriptor_set(
+					pipeline_bind_point::graphics, pipeline_layout, set
+				)
 				.cmd_set_viewport(surface_capabilities.current_extent)
 				.cmd_set_scissor(surface_capabilities.current_extent)
 				.cmd_bind_vertex_buffer(buffer)

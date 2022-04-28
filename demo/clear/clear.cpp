@@ -3,8 +3,6 @@
 exit 0
 #endif
 
-#include "vk/instance/layer_properties.hpp"
-
 #include "platform_implementation.hpp"
 #include <string.h>
 
@@ -12,8 +10,11 @@ int main() {
 	using namespace vk;
 
 	auto [instance, surface] = platform::create_instance_and_surface();
-	handle<vk::physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
+	auto physical_device = instance.get_first_physical_device();
+	auto queue_family_index =
+		physical_device.find_first_queue_family_with_capabilities(
+			queue_flag::graphics
+		);
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface isn't supported").new_line();
@@ -28,14 +29,19 @@ int main() {
 
 	auto surface_format = physical_device.get_first_surface_format(surface);
 
-	surface_capabilities surface_capabilities = physical_device.get_surface_capabilities(surface);
+	auto surface_capabilities {
+		physical_device.get_surface_capabilities(surface)
+	};
 
 	auto swapchain = device.create<vk::swapchain>(
 		surface,
 		surface_capabilities.min_image_count,
 		surface_capabilities.current_extent,
 		surface_format,
-		image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
+		image_usages {
+			image_usage::color_attachment,
+			image_usage::transfer_dst
+		},
 		sharing_mode::exclusive,
 		present_mode::immediate,
 		clipped{ true },
@@ -45,18 +51,29 @@ int main() {
 
 	uint32 images_count = (uint32)device.get_swapchain_image_count(swapchain);
 	handle<image> images_storage[images_count];
-	span<handle<image>> images{ images_storage, images_count };
-
-	device.get_swapchain_images(swapchain, images);
+	images_count = device.get_swapchain_images(
+		swapchain, span{ images_storage, images_count }
+	);
+	span images{ images_storage, images_count };
 
 	auto command_pool = device.create<vk::command_pool>(queue_family_index);
 
 	handle<command_buffer> command_buffers_storage[images_count];
-	span<handle<command_buffer>> command_buffers{ command_buffers_storage, images_count };
+	span<handle<command_buffer>> command_buffers{
+		command_buffers_storage,
+		images_count
+	};
 
-	vk::allocate_command_buffers(device, command_pool, command_buffer_level::primary, command_buffers);
+	vk::allocate_command_buffers(
+		device,
+		command_pool,
+		command_buffer_level::primary,
+		command_buffers
+	);
 
-	image_subresource_range image_subresource_range { image_aspects{ image_aspect::color } };
+	image_subresource_range image_subresource_range {
+		image_aspects{ image_aspect::color }
+	};
 
 	for(nuint i = 0; i < images_count; ++i) {
 		auto command_buffer = command_buffers[i];
@@ -108,12 +125,17 @@ int main() {
 	auto swapchain_image_semaphore = device.create<vk::semaphore>();
 	auto rendering_finished_semaphore = device.create<vk::semaphore>();
 
-	auto presentation_queue = device.get_queue(queue_family_index, vk::queue_index{ 0 });
+	auto presentation_queue {
+		device.get_queue(queue_family_index, vk::queue_index{ 0 })
+	};
 
 	while (!platform::should_close()) {
 		platform::begin();
 
-		auto result = device.try_acquire_next_image(swapchain, swapchain_image_semaphore);
+		auto result {
+			device.try_acquire_next_image(swapchain, swapchain_image_semaphore)
+		};
+
 		if(result.is_unexpected()) {
 			if(result.get_unexpected().suboptimal()) break;
 			platform::error("can't acquire swapchain image").new_line();

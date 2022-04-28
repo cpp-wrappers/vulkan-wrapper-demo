@@ -18,10 +18,12 @@ int main() {
 
 	auto [instance, surface] = platform::create_instance_and_surface();
 
-	handle<physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
+	auto physical_device = instance.get_first_physical_device();
 
-	platform::info("graphics family index: ", (uint32) queue_family_index).new_line();
+	auto queue_family_index =
+		physical_device.find_first_queue_family_with_capabilities(
+			queue_flag::graphics
+		);
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface isn't supported").new_line();
@@ -34,15 +36,17 @@ int main() {
 		extension_name{ "VK_KHR_swapchain" }
 	);
 
-	surface_format surface_format = physical_device.get_first_surface_format(surface);
+	auto surface_format = physical_device.get_first_surface_format(surface);
 
 	array color_attachments {
 		color_attachment_reference{ 0, image_layout::color_attachment_optimal }
 	};
 
 	auto render_pass = device.create<vk::render_pass>(
-		array{ subpass_description{ color_attachments } },
-		array{
+		array {
+			subpass_description{ color_attachments }
+		},
+		array {
 			attachment_description {
 				surface_format.format,
 				load_op{ attachment_load_op::clear },
@@ -50,7 +54,7 @@ int main() {
 				final_layout{ image_layout::present_src }
 			}
 		},
-		array{
+		array {
 			subpass_dependency {
 				src_subpass{ subpass_external },
 				dst_subpass{ 0 },
@@ -60,8 +64,13 @@ int main() {
 		}
 	);
 
-	auto vertex_shader = platform::read_shader_module(device, "triangle.vert.spv");
-	auto fragment_shader = platform::read_shader_module(device, "triangle.frag.spv");
+	auto vertex_shader = platform::read_shader_module(
+		device, "triangle.vert.spv"
+	);
+
+	auto fragment_shader = platform::read_shader_module(
+		device, "triangle.frag.spv"
+	);
 
 	pipeline_color_blend_attachment_state pcbas {
 		enable_blend{ false },
@@ -71,7 +80,12 @@ int main() {
 		src_alpha_blend_factor{ blend_factor::one },
 		dst_alpha_blend_factor{ blend_factor::zero },
 		alpha_blend_op{ blend_op::add },
-		color_components{ color_component::r, color_component::g, color_component::b, color_component::a }
+		color_components {
+			color_component::r,
+			color_component::g,
+			color_component::b,
+			color_component::a
+		}
 	};
 
 	auto pipeline_layout = device.create<vk::pipeline_layout>();
@@ -120,7 +134,9 @@ int main() {
 	auto queue = device.get_queue(queue_family_index, queue_index{ 0 });
 
 	while(!platform::should_close()) {
-		surface_capabilities surface_capabilities = physical_device.get_surface_capabilities(surface);
+		auto surface_capabilities {
+			physical_device.get_surface_capabilities(surface)
+		};
 
 		{
 			auto old_swapchain = move(swapchain);
@@ -130,7 +146,10 @@ int main() {
 				surface_capabilities.min_image_count,
 				surface_capabilities.current_extent,
 				surface_format,
-				image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
+				image_usages {
+					image_usage::color_attachment,
+					image_usage::transfer_dst
+				},
 				sharing_mode::exclusive,
 				present_mode::fifo,
 				clipped{ true },
@@ -140,11 +159,13 @@ int main() {
 			);
 		}
 
-		uint32 images_count = (uint32)device.get_swapchain_image_count(swapchain);
+		uint32 images_count = device.get_swapchain_image_count(swapchain);
 
 		handle<image> images_storage[images_count];
+		images_count = device.get_swapchain_images(
+			swapchain, span { images_storage, images_count }
+		);
 		span images{ images_storage, images_count };
-		device.get_swapchain_images(swapchain, images);
 
 		handle<image_view> image_views_raw[images_count];
 		span image_views{ image_views_raw, images_count };
@@ -166,13 +187,18 @@ int main() {
 			framebuffers[i] = device.create<framebuffer>(
 				render_pass,
 				array{ image_views[i] },
-				extent<3>{ surface_capabilities.current_extent.width(), surface_capabilities.current_extent.height(), 1 }
+				extent<3>{ surface_capabilities.current_extent, 1 }
 			);
 		}
 
 		handle<command_buffer> command_buffers_storage[images_count];
 		span command_buffers{ command_buffers_storage, images_count };
-		vk::allocate_command_buffers(device, command_pool, command_buffer_level::primary, command_buffers);
+		vk::allocate_command_buffers(
+			device,
+			command_pool,
+			command_buffer_level::primary,
+			command_buffers
+		);
 
 		for(nuint i = 0; i < images_count; ++i) {
 			auto command_buffer = command_buffers[i];
@@ -182,7 +208,9 @@ int main() {
 				.cmd_begin_render_pass(
 					render_pass, framebuffers[i],
 					render_area{ surface_capabilities.current_extent },
-					array{ clear_value { clear_color_value{ 0.0, 0.0, 0.0, 0.0 } } }
+					array {
+						clear_value { clear_color_value{ 0.0, 0.0, 0.0, 0.0 } }
+					}
 				)
 				.cmd_bind_pipeline(pipeline, pipeline_bind_point::graphics)
 				.cmd_set_viewport(surface_capabilities.current_extent)
@@ -198,9 +226,17 @@ int main() {
 		while (!platform::should_close()) {
 			platform::begin();
 
-			auto result = device.try_acquire_next_image(swapchain, swapchain_image_semaphore);
+			auto result = device.try_acquire_next_image(
+				swapchain,
+				swapchain_image_semaphore
+			);
+
 			if(result.is_unexpected()) {
-				if(result.get_unexpected().suboptimal() || result.get_unexpected().out_of_date()) break;
+				if(
+					result.get_unexpected().suboptimal() ||
+					result.get_unexpected().out_of_date()
+				) break;
+
 				platform::error("acquire next image").new_line();
 				return 1;
 			}
@@ -221,7 +257,11 @@ int main() {
 			);
 
 			if(!present_result.success()) {
-				if(present_result.suboptimal() || present_result.out_of_date()) break;
+				if(
+					present_result.suboptimal() ||
+					present_result.out_of_date()
+				) break;
+
 				platform::error("present").new_line();
 				return 1;
 			}
