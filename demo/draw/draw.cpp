@@ -29,10 +29,9 @@ int main() {
 		return 1;
 	}
 
-	auto device = physical_device.create_device(
+	auto device = physical_device.create<vk::device>(
 		queue_family_index,
-		queue_priority{ 1.0F },
-		extension_name{ "VK_KHR_swapchain" }
+		extension{ "VK_KHR_swapchain" }
 	);
 
 	auto surface_format = physical_device.get_first_surface_format(surface);

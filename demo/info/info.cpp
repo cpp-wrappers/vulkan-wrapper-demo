@@ -4,7 +4,7 @@ exit 0
 #endif
 
 #include "platform_implementation.hpp"
-#include <string.h>
+#include <vk/instance/layer/properties/for_each.hpp>
 
 static nuint tabs = 0;
 
@@ -94,10 +94,22 @@ int main() {
 							props.min_image_transfer_granularity[1], ", ",
 							props.min_image_transfer_granularity[2]
 						);
-						println("graphics: ", props.flags.get(queue_flag::graphics));
-						println("compute: ", props.flags.get(queue_flag::compute));
-						println("transfer: ", props.flags.get(queue_flag::transfer));
-						println("sparse binding: ", props.flags.get(queue_flag::sparse_binding));
+						println(
+							"graphics: ",
+							props.flags.get(queue_flag::graphics)
+						);
+						println(
+							"compute: ",
+							props.flags.get(queue_flag::compute)
+						);
+						println(
+							"transfer: ",
+							props.flags.get(queue_flag::transfer)
+						);
+						println(
+							"sparse binding: ",
+							props.flags.get(queue_flag::sparse_binding)
+						);
 					});
 				});
 			});
@@ -115,10 +127,22 @@ int main() {
 		array_block("instance_layers", [&] {
 			for_each_instance_layer_properties([](auto props) {
 				object_block([&]{
-					println("name: ", props.name);
-					println("spec version: ", props.spec_version);
-					println("implementation version: ", props.implementation_version);
-					println("description: ", props.description);
+					println(
+						"name: ",
+						props.name
+					);
+					println(
+						"spec version: ",
+						props.spec_version
+					);
+					println(
+						"implementation version: ",
+						props.implementation_version
+					);
+					println(
+						"description: ",
+						props.description
+					);
 				});
 			});
 		});

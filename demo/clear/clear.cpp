@@ -4,27 +4,22 @@ exit 0
 #endif
 
 #include "platform_implementation.hpp"
-#include <string.h>
 
 int main() {
 	using namespace vk;
 
 	auto [instance, surface] = platform::create_instance_and_surface();
 	auto physical_device = instance.get_first_physical_device();
-	auto queue_family_index =
-		physical_device.find_first_queue_family_with_capabilities(
-			queue_flag::graphics
-		);
+	auto queue_family = physical_device.find_first_graphics_queue_family();
 
-	if(!physical_device.get_surface_support(surface, queue_family_index)) {
+	if(!physical_device.get_surface_support(surface, queue_family)) {
 		platform::error("surface isn't supported").new_line();
 		return 1;
 	}
 
-	auto device = physical_device.create_device(
-		queue_family_index,
-		queue_priority{ 1.0F },
-		extension_name { "VK_KHR_swapchain" }
+	auto device = physical_device.create<vk::device>(
+		queue_family,
+		extension { "VK_KHR_swapchain" }
 	);
 
 	auto surface_format = physical_device.get_first_surface_format(surface);
@@ -56,7 +51,7 @@ int main() {
 	);
 	span images{ images_storage, images_count };
 
-	auto command_pool = device.create<vk::command_pool>(queue_family_index);
+	auto command_pool = device.create<vk::command_pool>(queue_family);
 
 	handle<command_buffer> command_buffers_storage[images_count];
 	span<handle<command_buffer>> command_buffers{
@@ -126,7 +121,7 @@ int main() {
 	auto rendering_finished_semaphore = device.create<vk::semaphore>();
 
 	auto presentation_queue {
-		device.get_queue(queue_family_index, vk::queue_index{ 0 })
+		device.get_queue(queue_family, vk::queue_index{ 0 })
 	};
 
 	while (!platform::should_close()) {

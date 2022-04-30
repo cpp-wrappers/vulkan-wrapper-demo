@@ -22,21 +22,16 @@ int main() {
 
 	auto [instance, surface] = platform::create_instance_and_surface();
 	auto physical_device = instance.get_first_physical_device();
-	auto queue_family_index {
-		physical_device.find_first_queue_family_with_capabilities(
-			queue_flag::graphics
-		)
-	};
+	auto queue_family = physical_device.find_first_graphics_queue_family();
 
-	if(!physical_device.get_surface_support(surface, queue_family_index)) {
+	if(!physical_device.get_surface_support(surface, queue_family)) {
 		platform::error("surface isn't supported").new_line();
 		return 1;
 	}
 
-	auto device = physical_device.create_device(
-		queue_family_index,
-		queue_priority{ 1.0F },
-		extension_name{ "VK_KHR_swapchain" }
+	auto device = physical_device.create<vk::device>(
+		queue_family,
+		extension{ "VK_KHR_swapchain" }
 	);
 
 	platform::image_info image_info = platform::read_image_info("leaf.png");
@@ -50,7 +45,6 @@ int main() {
 	platform::read_image_data("leaf.png", image_data);
 
 	auto image = device.create<vk::image>(
-		image_create_flags{},
 		image_type::two_d,
 		format::r8_g8_b8_a8_unorm,
 		extent<3>{ image_info.width, image_info.height, 1 },
@@ -58,9 +52,7 @@ int main() {
 		image_usages {
 			image_usage::transfer_dst,
 			image_usage::sampled
-		},
-		sharing_mode::exclusive,
-		span<vk::queue_family_index>{ nullptr, 0 }
+		}
 	);
 
 	auto image_memory = device.allocate<device_memory>(
@@ -96,7 +88,7 @@ int main() {
 		(void**) &image_data_ptr
 	);
 
-	for(unsigned i = 0; i < image_info.size; ++i) image_data_ptr[i] = image_data[i];
+	copy(image_data).to(image_data_ptr);
 
 	device.flush_mapped_memory_range(
 		staging_buffer_memory,
@@ -108,9 +100,7 @@ int main() {
 	auto image_view = device.create<vk::image_view>(
 		image,
 		format::r8_g8_b8_a8_unorm,
-		image_view_type::two_d,
-		component_mapping{},
-		image_subresource_range{ image_aspects{ image_aspect::color } }
+		image_view_type::two_d
 	);
 
 	struct data_t {
@@ -169,7 +159,7 @@ int main() {
 		(void**) &ptr
 	);
 
-	copy{ data }.to(span{ ptr, array_extent<decltype(data), 0> });
+	copy{ data }.to(ptr);
 
 	device.flush_mapped_memory_range(
 		device_memory,
@@ -269,18 +259,11 @@ int main() {
 		color_blend_op{ blend_op::add },
 		src_alpha_blend_factor{ blend_factor::one },
 		dst_alpha_blend_factor{ blend_factor::zero },
-		alpha_blend_op{ blend_op::add },
-		color_components {
-			color_component::r,
-			color_component::g,
-			color_component::b,
-			color_component::a
-		}
+		alpha_blend_op{ blend_op::add }
 	};
 
 	auto pipeline = device.create<vk::pipeline>(
-		subpass{ 0 },
-		pipeline_layout, render_pass,
+		subpass{ 0 }, render_pass, pipeline_layout,
 		primitive_topology::triangle_strip,
 		array {
 			pipeline_shader_stage_create_info {
@@ -315,7 +298,7 @@ int main() {
 	);
 
 	auto command_pool = device.create<vk::command_pool>(
-		queue_family_index,
+		queue_family,
 		command_pool_create_flags {
 			command_pool_create_flag::reset_command_buffer,
 			command_pool_create_flag::transient
@@ -347,7 +330,6 @@ int main() {
 			array {
 				image_memory_barrier {
 					.dst_access{ access::transfer_write },
-					.old_layout{ image_layout::undefined },
 					.new_layout{ image_layout::transfer_dst_optimal },
 					.image = image,
 					.subresource_range {
@@ -390,7 +372,7 @@ int main() {
 
 
 	handle<swapchain> swapchain{};
-	auto queue = device.get_queue(queue_family_index, queue_index{ 0 });
+	auto queue = device.get_queue(queue_family, queue_index{ 0 });
 
 	queue.submit(rendering_resources[0].command_buffer);
 
@@ -401,26 +383,22 @@ int main() {
 			physical_device.get_surface_capabilities(surface)
 		};
 
-		{
-			auto old_swapchain = move(swapchain);
-
-			swapchain = device.create<vk::swapchain>(
-				surface,
-				surface_capabilities.min_image_count,
-				surface_capabilities.current_extent,
-				surface_format,
-				image_usages {
-					image_usage::color_attachment,
-					image_usage::transfer_dst
-				},
-				sharing_mode::exclusive,
-				present_mode::fifo,
-				clipped{ true },
-				surface_transform::identity,
-				composite_alpha::opaque,
-				old_swapchain
-			);
-		}
+		swapchain = device.create<vk::swapchain>(
+			surface,
+			surface_capabilities.min_image_count,
+			surface_capabilities.current_extent,
+			surface_format,
+			image_usages {
+				image_usage::color_attachment,
+				image_usage::transfer_dst
+			},
+			sharing_mode::exclusive,
+			present_mode::fifo,
+			clipped{ true },
+			composite_alpha::opaque,
+			surface_transform::identity,
+			swapchain
+		);
 
 		uint32 images_count = device.get_swapchain_image_count(swapchain);
 
@@ -437,9 +415,7 @@ int main() {
 			image_views[i] = device.create<vk::image_view>(
 				images[i],
 				surface_format.format,
-				image_view_type::two_d,
-				component_mapping{},
-				image_subresource_range{ image_aspects{ image_aspect::color } }
+				image_view_type::two_d
 			);
 		}
 

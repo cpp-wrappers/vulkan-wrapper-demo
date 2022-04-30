@@ -25,23 +25,19 @@ int main() {
 
 	clock_gettime(CLOCK_REALTIME, &start_time);
 
-	auto instance_and_surface = platform::create_instance_and_surface();
+	auto [instance, surface] = platform::create_instance_and_surface();
 
-	handle<instance> instance = instance_and_surface.get<handle<vk::instance>>();
-	handle<surface> surface = instance_and_surface.get<handle<vk::surface>>();
+	auto physical_device = instance.get_first_physical_device();
+	auto queue_family = physical_device.find_first_graphics_queue_family();
 
-	handle<physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.find_first_queue_family_with_capabilities(vk::queue_flag::graphics);
-
-	if(!physical_device.get_surface_support(surface, queue_family_index)) {
+	if(!physical_device.get_surface_support(surface, queue_family)) {
 		platform::error("surface isn't supported by queue family").new_line();
 		return 1;
 	}
 
-	auto device = physical_device.create_device(
-		queue_family_index,
-		queue_priority{ 1.0 },
-		extension_name{ "VK_KHR_swapchain" }
+	auto device = physical_device.create<vk::device>(
+		queue_family,
+		extension{ "VK_KHR_swapchain" }
 	);
 
 	struct uniform_info_t {
@@ -51,11 +47,15 @@ int main() {
 
 	auto uniform_buffer = device.create<vk::buffer>(
 		buffer_size{ sizeof(uniform_info_t) },
-		buffer_usages{ buffer_usage::uniform_buffer, buffer_usage::transfer_dst },
+		buffer_usages {
+			buffer_usage::uniform_buffer, buffer_usage::transfer_dst
+		},
 		sharing_mode::exclusive
 	);
 
-	auto uniform_buffer_memory_requirements = device.get_memory_requirements(uniform_buffer);
+	auto uniform_buffer_memory_requirements {
+		device.get_memory_requirements(uniform_buffer)
+	};
 
 	auto memory_for_uniform_buffer = device.allocate<device_memory>(
 		memory_size{ uniform_buffer_memory_requirements.size },
@@ -73,7 +73,9 @@ int main() {
 		sharing_mode::exclusive
 	);
 
-	auto staging_uniform_buffer_memory_requirements = device.get_memory_requirements(staging_uniform_buffer);
+	auto staging_uniform_buffer_memory_requirements {
+		device.get_memory_requirements(staging_uniform_buffer)
+	};
 
 	auto memory_for_staging_uniform_buffer = device.allocate<device_memory>(
 		memory_size{ staging_uniform_buffer_memory_requirements.size },
@@ -83,7 +85,9 @@ int main() {
 		)
 	);
 
-	device.bind_memory(staging_uniform_buffer, memory_for_staging_uniform_buffer);
+	device.bind_memory(
+		staging_uniform_buffer, memory_for_staging_uniform_buffer
+	);
 
 	uniform_info_t* uniform_info_ptr;
 	device.map_memory(
@@ -141,11 +145,10 @@ int main() {
 		color_blend_op{ blend_op::add },
 		src_alpha_blend_factor{ blend_factor::one },
 		dst_alpha_blend_factor{ blend_factor::zero },
-		alpha_blend_op{ blend_op::add },
-		color_components{ color_component::r, color_component::g, color_component::b, color_component::a }
+		alpha_blend_op{ blend_op::add }
 	};
 
-	vk::surface_format surface_format = physical_device.get_first_surface_format(surface);
+	auto surface_format = physical_device.get_first_surface_format(surface);
 
 	array color_attachments {
 		color_attachment_reference{ 0, image_layout::color_attachment_optimal }
@@ -173,8 +176,7 @@ int main() {
 	auto fragment_shader = platform::read_shader_module(device, "sky.frag.spv");
 
 	auto pipeline = device.create<vk::pipeline>(
-		subpass{ 0 },
-		pipeline_layout, render_pass,
+		subpass{ 0 }, render_pass, pipeline_layout,
 		primitive_topology::triangle_strip,
 		array {
 			pipeline_shader_stage_create_info {
@@ -206,7 +208,7 @@ int main() {
 	);
 
 	auto command_pool = device.create<vk::command_pool>(
-		queue_family_index,
+		queue_family,
 		command_pool_create_flags {
 			command_pool_create_flag::reset_command_buffer,
 			command_pool_create_flag::transient
@@ -224,38 +226,40 @@ int main() {
 	array<rendering_resource, 2> rendering_resources{};
 
 	for(auto& rr : rendering_resources) {
-		rr.command_buffer = device.allocate<vk::command_buffer>(command_pool, command_buffer_level::primary);
+		rr.command_buffer = device.allocate<vk::command_buffer>(
+			command_pool, command_buffer_level::primary
+		);
 	}
 
 	handle<vk::swapchain> swapchain{};
-	auto queue = device.get_queue(queue_family_index, queue_index{ 0 });
+	auto queue = device.get_queue(queue_family, queue_index{ 0 });
 
 	while(!platform::should_close()) {
-		vk::surface_capabilities surface_capabilities = physical_device.get_surface_capabilities(surface);
+		auto surface_capabilities {
+			physical_device.get_surface_capabilities(surface)
+		};
 
-		{
-			auto old_swapchain = move(swapchain);
+		swapchain = device.create<vk::swapchain>(
+			surface,
+			surface_capabilities.min_image_count,
+			surface_capabilities.current_extent,
+			surface_format,
+			image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
+			sharing_mode::exclusive,
+			present_mode::fifo,
+			clipped{ true },
+			surface_transform::identity,
+			composite_alpha::opaque,
+			swapchain
+		);
 
-			swapchain = device.create<vk::swapchain>(
-				surface,
-				surface_capabilities.min_image_count,
-				surface_capabilities.current_extent,
-				surface_format,
-				image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
-				sharing_mode::exclusive,
-				present_mode::fifo,
-				clipped{ true },
-				surface_transform::identity,
-				composite_alpha::opaque,
-				old_swapchain
-			);
-		}
-
-		uint32 images_count = (uint32) device.get_swapchain_image_count(swapchain);
+		uint32 images_count = device.get_swapchain_image_count(swapchain);
 
 		handle<vk::image> images_storage[images_count];
+		images_count = device.get_swapchain_images(
+			swapchain, span{ images_storage, images_count }
+		);
 		span images{ images_storage, images_count };
-		device.get_swapchain_images(swapchain, images);
 
 		handle<vk::image_view> image_views_raw[images_count];
 		span image_views{ image_views_raw, images_count };
@@ -284,8 +288,14 @@ int main() {
 			camera_rotation[1] = y / 100.0;
 
 			view_matrix =
-				rotation(camera_rotation[1], math::geometry::cartesian::vector<float, 3>(1.0F, 0.0F, 0.0F)) *
-				rotation(camera_rotation[0], math::geometry::cartesian::vector<float, 3>(0.0F, 1.0F, 0.0F));
+				rotation(
+					camera_rotation[1],
+					math::geometry::cartesian::vector<float, 3>(1.F, 0.F, 0.F)
+				) *
+				rotation(
+					camera_rotation[0],
+					math::geometry::cartesian::vector<float, 3>(0.F, 1.F, 0.F)
+				);
 
 			auto& rr = rendering_resources[rendering_resource_index];
 			
@@ -296,9 +306,15 @@ int main() {
 			device.wait_for_fence(rr.fence);
 			device.reset_fence(rr.fence);
 
-			auto result = device.try_acquire_next_image(swapchain, rr.image_acquire);
+			auto result {
+				device.try_acquire_next_image(swapchain, rr.image_acquire)
+			};
+
 			if(result.is_unexpected()) {
-				if(result.get_unexpected().suboptimal() || result.get_unexpected().out_of_date()) break;
+				if(
+					result.get_unexpected().suboptimal() ||
+					result.get_unexpected().out_of_date()
+				) break;
 				platform::error("acquire next image").new_line();
 				return 1;
 			}
@@ -308,25 +324,33 @@ int main() {
 			rr.framebuffer = device.create<vk::framebuffer>(
 				render_pass,
 				array{ image_views[(uint32)image_index] },
-				extent<3>{ surface_capabilities.current_extent.width(), surface_capabilities.current_extent.height(), 1 }
+				extent<3>{ surface_capabilities.current_extent, 1 }
 			);
 
 			auto frustum = math::geometry::perspective(
 				95.0F / 360.0F * 2 * 3.14F,
-				float(surface_capabilities.current_extent.width()) / float(surface_capabilities.current_extent.height()),
+				float(surface_capabilities.current_extent.width()) /
+				float(surface_capabilities.current_extent.height()),
 				0.1F,
 				1000.0F
 			);
 
-			uniform_info_ptr->proj_view_inversed = (frustum * view_matrix).inversed().transposed();
+			uniform_info_ptr->proj_view_inversed =
+				(frustum * view_matrix).inversed().transposed();
 
 			timespec ts{};
 			clock_gettime(CLOCK_REALTIME, &ts);
 			float t = ts.tv_sec - start_time.tv_sec;
-			t += (ts.tv_nsec / 1000000.0F - start_time.tv_nsec / 1000000.0F) / 1000.0F;
+			t += (
+				ts.tv_nsec / 1000000.0F -
+				start_time.tv_nsec / 1000000.0F
+			) / 1000.0F;
 
 			uniform_info_ptr->t = t;
-			device.flush_mapped_memory_range(memory_for_staging_uniform_buffer, staging_uniform_buffer_memory_requirements.size);
+			device.flush_mapped_memory_range(
+				memory_for_staging_uniform_buffer,
+				staging_uniform_buffer_memory_requirements.size
+			);
 
 			auto& command_buffer = rr.command_buffer;
 
@@ -356,10 +380,14 @@ int main() {
 				.cmd_begin_render_pass(
 					render_pass, rr.framebuffer,
 					render_area{ surface_capabilities.current_extent },
-					array{ clear_value { clear_color_value{ 0.0, 0.0, 0.0, 0.0 } } }
+					array {
+						clear_value { clear_color_value{ 0.0, 0.0, 0.0, 0.0 } }
+					}
 				)
 				.cmd_bind_pipeline(pipeline, pipeline_bind_point::graphics)
-				.cmd_bind_descriptor_set(pipeline_bind_point::graphics, pipeline_layout, set)
+				.cmd_bind_descriptor_set(
+					pipeline_bind_point::graphics, pipeline_layout, set
+				)
 				.cmd_set_viewport(surface_capabilities.current_extent)
 				.cmd_set_scissor(surface_capabilities.current_extent)
 				.cmd_draw(vertex_count{ 4 })

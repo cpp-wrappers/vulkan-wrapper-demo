@@ -19,20 +19,17 @@ int main() {
 	using namespace vk;
 
 	auto [instance, surface] = platform::create_instance_and_surface();
-	handle<physical_device> physical_device = instance.get_first_physical_device();
-	auto queue_family_index = physical_device.find_first_queue_family_index_with_capabilities(queue_flag::graphics);
-
-	platform::info("graphics family index: ", (uint32)queue_family_index).new_line();
+	auto physical_device = instance.get_first_physical_device();
+	auto queue_family_index = physical_device.find_first_graphics_queue_family();
 
 	if(!physical_device.get_surface_support(surface, queue_family_index)) {
 		platform::error("surface isn't supported").new_line();
 		return 1;
 	}
 
-	auto device = physical_device.create_device(
+	auto device = physical_device.create<vk::device>(
 		queue_family_index,
-		queue_priority{ 1.0F },
-		extension_name{ "VK_KHR_swapchain" }
+		extension{ "VK_KHR_swapchain" }
 	);
 
 	using namespace math::geometry::cartesian;
@@ -86,14 +83,20 @@ int main() {
 	device.bind_memory(buffer, device_memory);
 
 	uint8* ptr;
-	device.map_memory(device_memory, memory_size{ sizeof(data) }, (void**) &ptr);
+	device.map_memory(
+		device_memory,
+		memory_size{ sizeof(data) }, (void**) &ptr
+	);
 
 	for(nuint i = 0; i < sizeof(data); ++i) *ptr++ = ((uint8*)&data)[i];
 
-	device.flush_mapped_memory_range(device_memory, memory_size{ sizeof(data) });
+	device.flush_mapped_memory_range(
+		device_memory,
+		memory_size{ sizeof(data) }
+	);
 	device.unmap_memory(device_memory);
 
-	surface_format surface_format = physical_device.get_first_surface_format(surface);
+	auto surface_format = physical_device.get_first_surface_format(surface);
 
 	array color_attachments {
 		color_attachment_reference{ 0, image_layout::color_attachment_optimal }
@@ -117,8 +120,13 @@ int main() {
 		} }
 	);
 
-	auto vertex_shader = platform::read_shader_module(device, "attribs.vert.spv");
-	auto fragment_shader = platform::read_shader_module(device, "attribs.frag.spv");
+	auto vertex_shader {
+		platform::read_shader_module(device, "attribs.vert.spv")
+	};
+
+	auto fragment_shader {
+		platform::read_shader_module(device, "attribs.frag.spv")
+	};
 
 	auto pipeline_layout = device.create<vk::pipeline_layout>();
 
@@ -131,12 +139,11 @@ int main() {
 		color_blend_op{ blend_op::add },
 		src_alpha_blend_factor{ blend_factor::one },
 		dst_alpha_blend_factor{ blend_factor::zero },
-		alpha_blend_op{ blend_op::add },
-		color_components{ color_component::r, color_component::g, color_component::b, color_component::a }
+		alpha_blend_op{ blend_op::add }
 	};
 
 	auto pipeline = device.create<vk::pipeline>(
-		pipeline_layout, render_pass,
+		subpass{ 0 }, render_pass, pipeline_layout,
 		primitive_topology::triangle_strip,
 		array {
 			pipeline_shader_stage_create_info {
@@ -168,10 +175,7 @@ int main() {
 			viewport_count{ 1 },
 			scissor_count{ 1 }
 		},
-		pipeline_dynamic_state_create_info {
-			dynamic_states
-		},
-		subpass{ 0 }
+		pipeline_dynamic_state_create_info { dynamic_states }
 	);
 
 	auto command_pool = device.create<vk::command_pool>(
@@ -193,38 +197,41 @@ int main() {
 	array<rendering_resource, 2> rendering_resources{};
 
 	for(auto& rr : rendering_resources) {
-		rr.command_buffer = device.allocate<command_buffer>(command_pool, command_buffer_level::primary);
+		rr.command_buffer = device.allocate<command_buffer>(
+			command_pool, command_buffer_level::primary
+		);
 	}
 
 	handle<swapchain> swapchain{};
 	auto queue = device.get_queue(queue_family_index, queue_index{ 0 });
 
 	while(!platform::should_close()) {
-		surface_capabilities surface_capabilities = physical_device.get_surface_capabilities(surface);
+		auto surface_caps = physical_device.get_surface_capabilities(surface);
 
-		{
-			auto old_swapchain = move(swapchain);
+		swapchain = device.create<vk::swapchain>(
+			surface,
+			surface_caps.min_image_count,
+			surface_caps.current_extent,
+			surface_format,
+			image_usages {
+				image_usage::color_attachment,
+				image_usage::transfer_dst
+			},
+			sharing_mode::exclusive,
+			present_mode::fifo,
+			clipped{ true },
+			surface_transform::identity,
+			composite_alpha::opaque,
+			swapchain
+		);
 
-			swapchain = device.create<vk::swapchain>(
-				surface,
-				surface_capabilities.min_image_count,
-				surface_capabilities.current_extent,
-				surface_format,
-				image_usages{ image_usage::color_attachment, image_usage::transfer_dst },
-				sharing_mode::exclusive,
-				present_mode::fifo,
-				clipped{ true },
-				surface_transform::identity,
-				composite_alpha::opaque,
-				old_swapchain
-			);
-		}
-
-		uint32 images_count = (uint32) device.get_swapchain_image_count(swapchain);
+		uint32 images_count = device.get_swapchain_image_count(swapchain);
 
 		handle<image> images_storage[images_count];
+		images_count = device.get_swapchain_images(
+			swapchain, span{ images_storage, images_count }
+		);
 		span images{ images_storage, images_count };
-		device.get_swapchain_images(swapchain, images);
 
 		handle<image_view> image_views_raw[images_count];
 		span image_views{ image_views_raw, images_count };
@@ -233,9 +240,7 @@ int main() {
 			image_views[i] = device.create<image_view>(
 				images[i],
 				surface_format.format,
-				image_view_type::two_d,
-				component_mapping{},
-				image_subresource_range{ image_aspects{ image_aspect::color } }
+				image_view_type::two_d
 			);
 		}
 
@@ -257,9 +262,15 @@ int main() {
 			device.wait_for_fence(rr.fence);
 			device.reset_fence(rr.fence);
 
-			auto result = device.try_acquire_next_image(swapchain, rr.image_acquire);
+			auto result = device.try_acquire_next_image(
+				swapchain, rr.image_acquire
+			);
+
 			if(result.is_unexpected()) {
-				if(result.get_unexpected().suboptimal() || result.get_unexpected().out_of_date()) break;
+				if(
+					result.get_unexpected().suboptimal() ||
+					result.get_unexpected().out_of_date()
+				) break;
 				platform::error("acquire next image").new_line();
 				return 1;
 			}
@@ -269,7 +280,7 @@ int main() {
 			rr.framebuffer = device.create<framebuffer>(
 				render_pass,
 				array{ image_views[(uint32)image_index] },
-				extent<3>{ surface_capabilities.current_extent.width(), surface_capabilities.current_extent.height(), 1 }
+				extent<3>{ surface_caps.current_extent, 1 }
 			);
 
 			auto& command_buffer = rr.command_buffer;
@@ -278,12 +289,14 @@ int main() {
 				.begin(command_buffer_usage::one_time_submit)
 				.cmd_begin_render_pass(
 					render_pass, rr.framebuffer,
-					render_area{ surface_capabilities.current_extent },
-					array{ clear_value { clear_color_value{ 0.0, 0.0, 0.0, 0.0 } } }
+					render_area{ surface_caps.current_extent },
+					array {
+						clear_value { clear_color_value{ 0.0, 0.0, 0.0, 0.0 } }
+					}
 				)
 				.cmd_bind_pipeline(pipeline, pipeline_bind_point::graphics)
-				.cmd_set_viewport(surface_capabilities.current_extent)
-				.cmd_set_scissor(surface_capabilities.current_extent)
+				.cmd_set_viewport(surface_caps.current_extent)
+				.cmd_set_scissor(surface_caps.current_extent)
 				.cmd_bind_vertex_buffer(buffer)
 				.cmd_draw(vertex_count{ 4 })
 				.cmd_end_render_pass()
@@ -304,7 +317,10 @@ int main() {
 			);
 
 			if(!present_result.success()) {
-				if(present_result.suboptimal() || present_result.out_of_date()) break;
+				if(
+					present_result.suboptimal() ||
+					present_result.out_of_date()
+				) break;
 				platform::error("present").new_line();
 				return 1;
 			}

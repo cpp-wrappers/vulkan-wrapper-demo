@@ -99,10 +99,10 @@ namespace platform {
 	create_instance(
 		vk::api_version api_version, const auto& extensions
 	) {
-		vk::layer_name validation_layer{ "VK_LAYER_KHRONOS_validation" };
-		vk::extension_name debug_report_extension{ "VK_EXT_debug_report" };
+		vk::layer validation_layer{ "VK_LAYER_KHRONOS_validation" };
+		vk::extension debug_report_extension{ "VK_EXT_debug_report" };
 
-		auto result = view_on_stack<vk::layer_name>(1)([&](auto layers) {
+		auto result = view_on_stack<vk::layer>(1)([&](auto layers) {
 			bool validation_layer_is_supported {
 				vk::is_instance_layer_supported(validation_layer)
 			};
@@ -112,12 +112,12 @@ namespace platform {
 				layers[layers_count++] = validation_layer;
 			}
 
-			return view_on_stack<vk::extension_name> {
+			return view_on_stack<vk::extension> {
 				extensions.size() + 1
-			}([&](span<vk::extension_name> extensions0) {
+			}([&](span<vk::extension> extensions0) {
 				nuint extensions_count = 0;
 				for(auto e : extensions)
-					extensions0[extensions_count++] = vk::extension_name{ e };
+					extensions0[extensions_count++] = vk::extension{ e };
 
 				if(vk::is_instance_extension_supported(debug_report_extension))
 					extensions0[extensions_count++] = debug_report_extension;
@@ -157,7 +157,7 @@ namespace platform {
 
 	inline handle<vk::instance> create_instance(vk::api_version api_version) {
 		return platform::create_instance(
-			api_version, array<vk::extension_name, 0>{}
+			api_version, array<vk::extension, 0>{}
 		);
 	}
 
