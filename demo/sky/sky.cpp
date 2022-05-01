@@ -198,7 +198,7 @@ int main() {
 			front_face::counter_clockwise
 		},
 		pipeline_color_blend_state_create_info {
-			span{ &pcbas, 1 }
+			single_view{ pcbas }
 		},
 		pipeline_viewport_state_create_info {
 			viewport_count{ 1 },

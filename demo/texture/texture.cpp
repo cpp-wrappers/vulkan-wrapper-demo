@@ -279,7 +279,7 @@ int main() {
 		},
 		pipeline_multisample_state_create_info{},
 		pipeline_vertex_input_state_create_info {
-			span{ &vertex_binding_description, 1 },
+			single_view{ vertex_binding_description },
 			vertex_input_attribute_descriptions
 		},
 		pipeline_rasterization_state_create_info {
@@ -288,7 +288,7 @@ int main() {
 			front_face::counter_clockwise
 		},
 		pipeline_color_blend_state_create_info {
-			span{ &pcbas, 1 }
+			single_view{ pcbas }
 		},
 		pipeline_viewport_state_create_info {
 			viewport_count{ 1 },

@@ -44,9 +44,7 @@ int main() {
 				final_layout{ image_layout::present_src }
 			}
 		},
-		array {
-	/* 0 */ subpass_description{ refs }
-		},
+		subpass_description{ refs },
 		array {
 			subpass_dependency {
 				src_subpass{ subpass_external },
@@ -65,19 +63,9 @@ int main() {
 		device, "triangle.frag.spv"
 	);
 
-	pipeline_color_blend_attachment_state pcbas {
-		enable_blend{ false },
-		src_color_blend_factor{ blend_factor::one },
-		dst_color_blend_factor{ blend_factor::zero },
-		color_blend_op{ blend_op::add },
-		src_alpha_blend_factor{ blend_factor::one },
-		dst_alpha_blend_factor{ blend_factor::zero },
-		alpha_blend_op{ blend_op::add },
-	};
+	pipeline_color_blend_attachment_state pcbas { enable_blend{ false } };
 
 	auto pipeline_layout = device.create<vk::pipeline_layout>();
-
-	array dynamic_states { dynamic_state::viewport, dynamic_state::scissor };
 
 	auto pipeline = device.create<vk::pipeline>(
 		render_pass, subpass{ 0 }, pipeline_layout,
@@ -103,12 +91,12 @@ int main() {
 		},
 		pipeline_color_blend_state_create_info {
 			logic_op::copy,
-			span{ &pcbas, 1 }
+			single_view{ pcbas }
 		},
 		pipeline_viewport_state_create_info {
 			viewport_count{ 1 }, scissor_count{ 1 }
 		},
-		pipeline_dynamic_state_create_info { dynamic_states }
+		array{ dynamic_state::viewport, dynamic_state::scissor }
 	);
 
 	auto command_pool = device.create<vk::command_pool>(queue_family);
@@ -121,6 +109,7 @@ int main() {
 			physical_device.get_surface_capabilities(surface)
 		};
 
+		auto prev_swapchain = swapchain;
 		swapchain = device.create<vk::swapchain>(
 			surface,
 			surface_caps.min_image_count,
@@ -137,6 +126,7 @@ int main() {
 			composite_alpha::opaque,
 			swapchain
 		);
+		device.destroy(prev_swapchain);
 
 		uint32 images_count = device.get_swapchain_image_count(swapchain);
 
@@ -149,45 +139,41 @@ int main() {
 		handle<image_view> image_views_raw[images_count];
 		span image_views{ image_views_raw, images_count };
 
+		handle<framebuffer> framebuffers_storage[images_count];
+		span framebuffers{ framebuffers_storage, images_count };
+
+		handle<fence> fences_storage[images_count];
+		span fences{ fences_storage, images_count };
+
+		handle<command_buffer> command_buffers_storage[images_count];
+		span command_buffers{ command_buffers_storage, images_count };
+		vk::allocate_command_buffers(
+			device, command_pool, command_buffer_level::primary, command_buffers
+		);
+
 		for(nuint i = 0; i < images_count; ++i) {
 			image_views[i] = device.create<image_view>(
 				images[i],
 				surface_format.format,
 				image_view_type::two_d
 			);
-		}
 
-		handle<framebuffer> framebuffers_raw[images_count];
-		span framebuffers{ framebuffers_raw, images_count };
-
-		for(nuint i = 0; i < images_count; ++i) {
 			framebuffers[i] = device.create<framebuffer>(
 				render_pass,
 				array{ image_views[i] },
 				extent<3>{ surface_caps.current_extent, 1 }
 			);
-		}
 
-		handle<command_buffer> command_buffers_storage[images_count];
-		span command_buffers{ command_buffers_storage, images_count };
-		vk::allocate_command_buffers(
-			device,
-			command_pool,
-			command_buffer_level::primary,
-			command_buffers
-		);
+			fences[i] = device.create<fence>();
 
-		for(nuint i = 0; i < images_count; ++i) {
 			auto command_buffer = command_buffers[i];
 
 			command_buffer
-				.begin(command_buffer_usage::simultaneius_use)
+				.begin()
 				.cmd_begin_render_pass(
 					render_pass, framebuffers[i],
 					render_area{ surface_caps.current_extent },
-					array {
-						clear_value { clear_color_value{ 0.0, 0.0, 0.0, 0.0 } }
-					}
+					clear_value{ clear_color_value{} }
 				)
 				.cmd_bind_pipeline(pipeline, pipeline_bind_point::graphics)
 				.cmd_set_viewport(surface_caps.current_extent)
@@ -212,18 +198,21 @@ int main() {
 					result.get_unexpected().suboptimal() ||
 					result.get_unexpected().out_of_date()
 				) break;
-
 				platform::error("acquire next image").new_line();
 				return 1;
 			}
 
 			image_index image_index = result;
 
+			device.wait_for_fence(fences[image_index]);
+			device.reset_fence(fences[image_index]);
+
 			queue.submit(
-				wait_semaphore{ swapchain_image_semaphore },
-				pipeline_stages{ pipeline_stage::color_attachment_output },
 				command_buffers[image_index],
-				signal_semaphore{ rendering_finished_semaphore }
+				pipeline_stages{ pipeline_stage::color_attachment_output },
+				wait_semaphore{ swapchain_image_semaphore },
+				signal_semaphore{ rendering_finished_semaphore },
+				fences[image_index]
 			);
 
 			vk::result present_result = queue.try_present(
@@ -245,7 +234,16 @@ int main() {
 			platform::end();
 		}
 
-		device.wait_idle();
+		for(nuint i = 0; i < images_count; ++i) {
+			device.wait_for_fence(fences[i]);
+
+			device.destroy(image_views[i]);
+			device.destroy(framebuffers[i]);
+			device.destroy(fences[i]);
+		}
+
+		device.destroy(rendering_finished_semaphore);
+		device.destroy(swapchain_image_semaphore);
 
 		device.free_command_buffers(command_pool, command_buffers);
 	}

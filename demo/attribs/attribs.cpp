@@ -169,7 +169,7 @@ int main() {
 		},
 		pipeline_color_blend_state_create_info {
 			logic_op::copy,
-			span{ &pcbas, 1 }
+			single_view{ pcbas }
 		},
 		pipeline_viewport_state_create_info {
 			viewport_count{ 1 },

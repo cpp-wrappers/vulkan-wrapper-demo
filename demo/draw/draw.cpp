@@ -18,19 +18,15 @@ int main() {
 
 	auto [instance, surface] = platform::create_instance_and_surface();
 	auto physical_device = instance.get_first_physical_device();
-	auto queue_family_index {
-		physical_device.find_first_queue_family_with_capabilities(
-			queue_flag::graphics
-		)
-	};
+	auto queue_family = physical_device.find_first_graphics_queue_family();
 
-	if(!physical_device.get_surface_support(surface, queue_family_index)) {
+	if(!physical_device.get_surface_support(surface, queue_family)) {
 		platform::error("surface isn't supported").new_line();
 		return 1;
 	}
 
 	auto device = physical_device.create<vk::device>(
-		queue_family_index,
+		queue_family,
 		extension{ "VK_KHR_swapchain" }
 	);
 
@@ -69,7 +65,7 @@ int main() {
 	};
 
 	auto render_pass = device.create<vk::render_pass>(
-		array{ subpass_description{ color_attachment } },
+		subpass_description{ color_attachment },
 		array{ attachment_description{
 			surface_format.format,
 			load_op{ attachment_load_op::clear },
@@ -159,7 +155,7 @@ int main() {
 			front_face::counter_clockwise
 		},
 		pipeline_color_blend_state_create_info {
-			span{ &pcbas, 1 }
+			single_view{ pcbas }
 		},
 		pipeline_viewport_state_create_info {
 			viewport_count{ 1 },
@@ -170,45 +166,128 @@ int main() {
 
 	handle<swapchain> swapchain;
 
+	auto command_pool = device.create<vk::command_pool>(queue_family);
+	auto queue = device.get_queue(queue_family, queue_index{ 0 });
+
 	while(!platform::should_close()) {
-		auto surface_capabilities {
+		auto surface_caps {
 			physical_device.get_surface_capabilities(surface)
 		};
 
-		device.create<vk::swapchain>(
+		swapchain = device.create<vk::swapchain>(
 			surface,
 			swapchain,
-			surface_capabilities.min_image_count,
+			surface_caps.min_image_count,
 			surface_format,
-			surface_capabilities.current_extent,
+			surface_caps.current_extent,
 			image_usages {
 				image_usage::color_attachment
 			},
 			sharing_mode::exclusive,
 			present_mode::fifo,
 			clipped{ false },
-			surface_capabilities.current_transform,
+			surface_caps.current_transform,
 			composite_alpha::opaque
 		);
 
 		uint32 images_count = device.get_swapchain_image_count(swapchain);
 		handle<vk::image> swapchain_images[images_count];
-		images_count = device.get_swapchain_images(swapchain, span{ swapchain_images, images_count });
+		images_count = device.get_swapchain_images(
+			swapchain, span{ swapchain_images, images_count }
+		);
 		span images{ swapchain_images, images_count };
 
 		struct per_image {
-			handle<vk::image_view> view;
+			handle<vk::image_view>     view;
 			handle<vk::command_buffer> command_buffer;
-			handle<vk::framebuffer> framebuffer;
-			handle<vk::fence> fence;
+			handle<vk::framebuffer>    framebuffer;
+			handle<vk::fence>          fence;
 		};
+		per_image per_image_storage[images_count];
 
-		for(auto image : images) {
-			
+		for(nuint index = 0; index < images_count; ++index) {
+			per_image_storage[index].view = device.create<vk::image_view>(
+				images[index],
+				image_view_type::two_d,
+				surface_format.format
+			);
+			per_image_storage[index].command_buffer = {
+				device.allocate<vk::command_buffer>(
+					command_pool, command_buffer_level::primary
+				)
+			};
+
+			per_image_storage[index].framebuffer = {
+				device.create<vk::framebuffer>(
+					render_pass,
+					array{ per_image_storage[index].view },
+					extent<3>{ surface_caps.current_extent, 1 }
+				)
+			};
+
+			per_image_storage[index].command_buffer
+				.begin()
+				.cmd_begin_render_pass(
+					render_pass, per_image_storage[index].framebuffer,
+					render_area{ surface_caps.current_extent },
+					clear_value{ clear_color_value{} }
+				)
+				.cmd_bind_pipeline(pipeline, pipeline_bind_point::graphics)
+				.cmd_set_viewport(surface_caps.current_extent)
+				.cmd_set_scissor(surface_caps.current_extent)
+				.cmd_draw(vertex_count{ 4 })
+				.cmd_end_render_pass()
+				.end();
+
+			per_image_storage[index].fence = device.create<vk::fence>();
 		}
+
+		auto swapchain_semaphore = device.create<vk::semaphore>();
+		auto submit_semaphore = device.create<vk::semaphore>();
 
 		while(!platform::should_close()) {
 			platform::begin();
+
+			auto result = device.try_acquire_next_image(
+				swapchain, swapchain_semaphore
+			);
+
+			if(result.is_unexpected()) {
+				if(
+					result.get_unexpected().suboptimal() &&
+					result.get_unexpected().out_of_date()
+				) break;
+				platform::error("acquire next image").new_line();
+				return 1;
+			}
+
+			auto index = result.get_expected();
+
+			device.wait_for_fence(per_image_storage[index].fence);
+			device.reset_fence(per_image_storage[index].fence);
+
+			queue.submit(
+				per_image_storage[index].command_buffer,
+				per_image_storage[index].fence,
+				pipeline_stages{ pipeline_stage::color_attachment_output },
+				wait_semaphore{ swapchain_semaphore },
+				signal_semaphore{ submit_semaphore }
+			);
+
+			vk::result present_result = queue.try_present(
+				wait_semaphore{ submit_semaphore }, swapchain, index
+			);
+
+			if(!present_result.success()) {
+				if(
+					present_result.suboptimal() ||
+					present_result.out_of_date()
+				) break;
+
+				platform::error("present").new_line();
+				return 1;
+			}
+
 			platform::end();
 		}
 	}
