@@ -192,6 +192,11 @@ platform::create_instance_and_surface(vk::api_version api_version) {
 	return { instance, surface0.get_expected() };
 }
 
+inline math::vector<float, 2> platform::get_cursor_position() {
+	auto [x, y] = window.get_cursor_pos();
+	return { (float) x, (float) y };
+}
+
 inline bool platform::should_close() {
 	return glfwWindowShouldClose(window);
 }

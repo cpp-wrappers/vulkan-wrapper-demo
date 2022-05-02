@@ -55,6 +55,8 @@ args+=(-lpng)
 args+=(-fuse-ld=lld)
 
 if [[ $OS == Windows_NT ]]; then
+	args+=(-static)
+	libs+=(-lgdi32)
 	libs+=(-lglfw3)
 	libs+=(/c/Windows/System32/vulkan-1.dll)
 	#libs+=(-lvulkan)

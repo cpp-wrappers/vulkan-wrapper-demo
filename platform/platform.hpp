@@ -187,6 +187,8 @@ namespace platform {
 		);
 	}
 
+	inline math::vector<float, 2> get_cursor_position();
+
 	inline bool should_close();
 	inline void begin();
 	inline void end();
